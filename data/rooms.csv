@@ -1,0 +1,11 @@
+school_name,school_order,building_name,zone_name,room_name,room_order,carpet_sqft,tile_sqft,available_day,include_deep_clean,include_strip,include_wax,include_carpet,include_exterior,notes
+Elementary B,1,Main,Front,Room 1,1,500,350,1,True,True,True,True,False,
+Elementary B,1,Main,Front,Room 2,2,600,350,1,True,True,True,True,False,
+Elementary B,1,Main,Core,Library,3,1200,800,1,True,True,True,True,False,
+Elementary A,2,Main,North,Room 1,1,500,300,1,True,True,True,True,False,
+Elementary A,2,Main,North,Room 2,2,600,300,1,True,True,True,True,False,
+Elementary A,2,Main,South,Room 3,3,400,300,1,True,True,True,True,False,
+Elementary A,2,Office,Admin,Office,4,800,400,1,True,True,True,True,False,
+Elementary C,3,Main,Shared,Multi-use,1,1000,2000,1,True,True,True,True,False,
+Elementary C,3,Main,Classrooms,Room 1,2,500,300,10,True,True,True,True,False,Blocked until summer school releases
+Elementary C,3,Main,Classrooms,Room 2,3,500,300,10,True,True,True,True,False,Blocked until summer school releases

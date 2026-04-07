@@ -1,0 +1,16 @@
+setting,value
+schedule_name,Summer 2026
+target_end_day,20
+hours_per_staff_per_day,8
+include_deep_clean,True
+include_strip,True
+include_wax,True
+include_carpet,True
+include_exterior,False
+deep_clean_rate_sqft_per_hour,400
+strip_rate_sqft_per_hour,300
+wax_rate_sqft_per_hour,600
+carpet_rate_sqft_per_hour,500
+exterior_rate_sqft_per_hour,1000
+wax_coats,3
+transition_hours_per_school,0.5
