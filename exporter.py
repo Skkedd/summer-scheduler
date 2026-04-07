@@ -18,13 +18,28 @@ def export_daily_schedule(result: ScheduleResult, folder_path: str = "output") -
             [
                 "day",
                 "effective_staff",
-                "daily_capacity",
-                "used_capacity",
-                "unused_capacity",
+                "general_staff",
+                "carpet_staff",
+                "general_capacity_hours",
+                "carpet_capacity_hours",
+                "daily_capacity_productive_hours",
+                "general_used_capacity_hours",
+                "carpet_used_capacity_hours",
+                "used_capacity_hours",
+                "general_unused_capacity_hours",
+                "carpet_unused_capacity_hours",
+                "unused_capacity_hours",
+                "active_school_name",
+                "day_status_note",
+                "crew_type",
                 "school_name",
+                "building_name",
+                "zone_name",
                 "room_name",
                 "phase_name",
+                "available_day",
                 "hours_done",
+                "note",
             ]
         )
 
@@ -35,13 +50,28 @@ def export_daily_schedule(result: ScheduleResult, folder_path: str = "output") -
                         [
                             day.day,
                             day.effective_staff,
+                            day.general_staff,
+                            day.carpet_staff,
+                            f"{day.general_capacity:.2f}",
+                            f"{day.carpet_capacity:.2f}",
                             f"{day.daily_capacity:.2f}",
+                            f"{day.general_used_capacity:.2f}",
+                            f"{day.carpet_used_capacity:.2f}",
                             f"{day.used_capacity:.2f}",
+                            f"{day.general_unused_capacity:.2f}",
+                            f"{day.carpet_unused_capacity:.2f}",
                             f"{day.unused_capacity:.2f}",
+                            day.active_school_name,
+                            day.status_note,
+                            item.crew_type,
                             item.school_name,
+                            item.building_name,
+                            item.zone_name,
                             item.room_name,
                             item.phase_name,
+                            item.available_day if item.available_day is not None else "",
                             f"{item.hours_done:.2f}",
+                            item.note,
                         ]
                     )
             else:
@@ -49,9 +79,24 @@ def export_daily_schedule(result: ScheduleResult, folder_path: str = "output") -
                     [
                         day.day,
                         day.effective_staff,
+                        day.general_staff,
+                        day.carpet_staff,
+                        f"{day.general_capacity:.2f}",
+                        f"{day.carpet_capacity:.2f}",
                         f"{day.daily_capacity:.2f}",
+                        f"{day.general_used_capacity:.2f}",
+                        f"{day.carpet_used_capacity:.2f}",
                         f"{day.used_capacity:.2f}",
+                        f"{day.general_unused_capacity:.2f}",
+                        f"{day.carpet_unused_capacity:.2f}",
                         f"{day.unused_capacity:.2f}",
+                        day.active_school_name,
+                        day.status_note,
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
                         "",
                         "",
                         "",
@@ -84,7 +129,13 @@ def export_task_summary(result: ScheduleResult, folder_path: str = "output") -> 
         )
 
         for task in result.task_items:
-            status = "Complete" if task.remaining_hours <= 0 else "Remaining"
+            if task.remaining_hours <= 0:
+                status = "Complete"
+            elif task.remaining_hours < task.total_hours:
+                status = "In Progress"
+            else:
+                status = "Not Started"
+
             writer.writerow(
                 [
                     task.school_name,
@@ -111,10 +162,57 @@ def export_summary(result: ScheduleResult, folder_path: str = "output") -> str:
         writer = csv.writer(csv_file)
         writer.writerow(["schedule_name", result.schedule_name])
         writer.writerow(["target_end_day", result.target_end_day])
+        writer.writerow(["current_day", result.current_day])
         writer.writerow(["finish_day", result.finish_day])
         writer.writerow(["met_deadline", result.met_deadline])
         writer.writerow(["total_planned_hours", f"{result.total_planned_hours:.2f}"])
-        writer.writerow(["total_used_hours", f"{result.total_used_hours:.2f}"])
-        writer.writerow(["remaining_backlog_hours", f"{result.remaining_backlog_hours:.2f}"])
+        writer.writerow(
+            ["completed_hours_before_run", f"{result.completed_hours_before_run:.2f}"]
+        )
+        writer.writerow(
+            ["remaining_hours_at_start", f"{result.remaining_hours_at_start:.2f}"]
+        )
+        writer.writerow(
+            ["total_used_hours_in_reforecast", f"{result.total_used_hours:.2f}"]
+        )
+        writer.writerow(
+            ["remaining_backlog_hours", f"{result.remaining_backlog_hours:.2f}"]
+        )
+        writer.writerow(
+            ["recommendation_based_on_start_of_run", result.recommendation.based_on_start_of_run]
+        )
+        writer.writerow(["status_label", result.recommendation.status_label])
+        writer.writerow(["bottleneck_type", result.recommendation.bottleneck_type])
+        writer.writerow(
+            [
+                "available_backlog_hours_at_start",
+                f"{result.recommendation.available_backlog_hours:.2f}",
+            ]
+        )
+        writer.writerow(
+            [
+                "blocked_backlog_hours_at_start",
+                f"{result.recommendation.blocked_backlog_hours:.2f}",
+            ]
+        )
+        writer.writerow(
+            [
+                "total_backlog_hours_at_start",
+                f"{result.recommendation.total_backlog_hours:.2f}",
+            ]
+        )
+        writer.writerow(
+            [
+                "productive_capacity_to_deadline_hours",
+                f"{result.recommendation.capacity_to_deadline_hours:.2f}",
+            ]
+        )
+        writer.writerow(
+            [
+                "extra_staff_days_needed",
+                f"{result.recommendation.extra_staff_days_needed:.2f}",
+            ]
+        )
+        writer.writerow(["recommended_action", result.recommendation.recommended_action])
 
     return file_path

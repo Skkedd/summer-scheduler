@@ -1,7 +1,19 @@
 schedule_name,Summer 2026
 target_end_day,20
+current_day,5
 finish_day,10
 met_deadline,True
 total_planned_hours,88.20
-total_used_hours,88.70
+completed_hours_before_run,38.05
+remaining_hours_at_start,50.15
+total_used_hours_in_reforecast,50.15
 remaining_backlog_hours,0.00
+recommendation_based_on_start_of_run,True
+status_label,ON TRACK WITH ACCESS CONSTRAINTS
+bottleneck_type,Room Availability
+available_backlog_hours_at_start,39.15
+blocked_backlog_hours_at_start,11.00
+total_backlog_hours_at_start,50.15
+productive_capacity_to_deadline_hours,418.50
+extra_staff_days_needed,0.00
+recommended_action,"Schedule is on track, but later room release is controlling part of the finish. Earlier access would create a smoother schedule faster than adding staff."

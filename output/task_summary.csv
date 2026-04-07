@@ -1,4 +1,8 @@
 school_name,building_name,zone_name,room_name,phase_name,available_day,total_hours,remaining_hours,status,notes
+Elementary B,Main,Core,Library,Deep Clean,1,5.00,0.00,Complete,
+Elementary B,Main,Core,Library,Strip,1,2.67,0.00,Complete,
+Elementary B,Main,Core,Library,Wax (3 coats),1,4.00,0.00,Complete,
+Elementary B,Main,Core,Library,Carpet,1,2.40,0.00,Complete,
 Elementary B,Main,Front,Room 1,Deep Clean,1,2.12,0.00,Complete,
 Elementary B,Main,Front,Room 1,Strip,1,1.17,0.00,Complete,
 Elementary B,Main,Front,Room 1,Wax (3 coats),1,1.75,0.00,Complete,
@@ -7,10 +11,6 @@ Elementary B,Main,Front,Room 2,Deep Clean,1,2.38,0.00,Complete,
 Elementary B,Main,Front,Room 2,Strip,1,1.17,0.00,Complete,
 Elementary B,Main,Front,Room 2,Wax (3 coats),1,1.75,0.00,Complete,
 Elementary B,Main,Front,Room 2,Carpet,1,1.20,0.00,Complete,
-Elementary B,Main,Core,Library,Deep Clean,1,5.00,0.00,Complete,
-Elementary B,Main,Core,Library,Strip,1,2.67,0.00,Complete,
-Elementary B,Main,Core,Library,Wax (3 coats),1,4.00,0.00,Complete,
-Elementary B,Main,Core,Library,Carpet,1,2.40,0.00,Complete,
 Elementary A,Main,North,Room 1,Deep Clean,1,2.00,0.00,Complete,
 Elementary A,Main,North,Room 1,Strip,1,1.00,0.00,Complete,
 Elementary A,Main,North,Room 1,Wax (3 coats),1,1.50,0.00,Complete,
@@ -27,10 +27,6 @@ Elementary A,Office,Admin,Office,Deep Clean,1,3.00,0.00,Complete,
 Elementary A,Office,Admin,Office,Strip,1,1.33,0.00,Complete,
 Elementary A,Office,Admin,Office,Wax (3 coats),1,2.00,0.00,Complete,
 Elementary A,Office,Admin,Office,Carpet,1,1.60,0.00,Complete,
-Elementary C,Main,Shared,Multi-use,Deep Clean,1,7.50,0.00,Complete,
-Elementary C,Main,Shared,Multi-use,Strip,1,6.67,0.00,Complete,
-Elementary C,Main,Shared,Multi-use,Wax (3 coats),1,10.00,0.00,Complete,
-Elementary C,Main,Shared,Multi-use,Carpet,1,2.00,0.00,Complete,
 Elementary C,Main,Classrooms,Room 1,Deep Clean,10,2.00,0.00,Complete,Blocked until summer school releases
 Elementary C,Main,Classrooms,Room 1,Strip,10,1.00,0.00,Complete,Blocked until summer school releases
 Elementary C,Main,Classrooms,Room 1,Wax (3 coats),10,1.50,0.00,Complete,Blocked until summer school releases
@@ -39,3 +35,7 @@ Elementary C,Main,Classrooms,Room 2,Deep Clean,10,2.00,0.00,Complete,Blocked unt
 Elementary C,Main,Classrooms,Room 2,Strip,10,1.00,0.00,Complete,Blocked until summer school releases
 Elementary C,Main,Classrooms,Room 2,Wax (3 coats),10,1.50,0.00,Complete,Blocked until summer school releases
 Elementary C,Main,Classrooms,Room 2,Carpet,10,1.00,0.00,Complete,Blocked until summer school releases
+Elementary C,Main,Shared,Multi-use,Deep Clean,1,7.50,0.00,Complete,
+Elementary C,Main,Shared,Multi-use,Strip,1,6.67,0.00,Complete,
+Elementary C,Main,Shared,Multi-use,Wax (3 coats),1,10.00,0.00,Complete,
+Elementary C,Main,Shared,Multi-use,Carpet,1,2.00,0.00,Complete,

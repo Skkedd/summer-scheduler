@@ -1,0 +1,21 @@
+school_name,room_name,phase_name,hours_completed
+Elementary B,Room 1,Deep Clean,2.12
+Elementary B,Room 1,Strip,1.17
+Elementary B,Room 1,Wax (3 coats),1.75
+Elementary B,Room 1,Carpet,1.00
+Elementary B,Room 2,Deep Clean,2.38
+Elementary B,Room 2,Strip,1.17
+Elementary B,Room 2,Wax (3 coats),1.75
+Elementary B,Room 2,Carpet,1.20
+Elementary B,Library,Deep Clean,5.00
+Elementary B,Library,Strip,2.67
+Elementary B,Library,Wax (3 coats),4.00
+Elementary B,Library,Carpet,2.40
+Elementary A,Room 1,Deep Clean,2.00
+Elementary A,Room 1,Strip,1.00
+Elementary A,Room 1,Wax (3 coats),1.50
+Elementary A,Room 1,Carpet,1.00
+Elementary A,Room 2,Deep Clean,2.25
+Elementary A,Room 2,Strip,1.00
+Elementary A,Room 2,Wax (3 coats),1.50
+Elementary A,Room 2,Carpet,1.20

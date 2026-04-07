@@ -2,6 +2,7 @@ setting,value
 schedule_name,Summer 2026
 target_end_day,20
 hours_per_staff_per_day,8
+current_day,5
 include_deep_clean,True
 include_strip,True
 include_wax,True

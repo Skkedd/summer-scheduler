@@ -1,50 +1,24 @@
-day,effective_staff,daily_capacity,used_capacity,unused_capacity,school_name,room_name,phase_name,hours_done
-1,5,40.00,40.00,0.00,Elementary B,Room 1,Deep Clean,2.12
-1,5,40.00,40.00,0.00,Elementary B,Room 1,Strip,1.17
-1,5,40.00,40.00,0.00,Elementary B,Room 1,Wax (3 coats),1.75
-1,5,40.00,40.00,0.00,Elementary B,Room 1,Carpet,1.00
-1,5,40.00,40.00,0.00,Elementary B,Room 2,Deep Clean,2.38
-1,5,40.00,40.00,0.00,Elementary B,Room 2,Strip,1.17
-1,5,40.00,40.00,0.00,Elementary B,Room 2,Wax (3 coats),1.75
-1,5,40.00,40.00,0.00,Elementary B,Room 2,Carpet,1.20
-1,5,40.00,40.00,0.00,Elementary B,Library,Deep Clean,5.00
-1,5,40.00,40.00,0.00,Elementary B,Library,Strip,2.67
-1,5,40.00,40.00,0.00,Elementary B,Library,Wax (3 coats),4.00
-1,5,40.00,40.00,0.00,Elementary B,Library,Carpet,2.40
-1,5,40.00,40.00,0.00,Elementary A,Room 1,Deep Clean,2.00
-1,5,40.00,40.00,0.00,Elementary A,Room 1,Strip,1.00
-1,5,40.00,40.00,0.00,Elementary A,Room 1,Wax (3 coats),1.50
-1,5,40.00,40.00,0.00,Elementary A,Room 1,Carpet,1.00
-1,5,40.00,40.00,0.00,Elementary A,Room 2,Deep Clean,2.25
-1,5,40.00,40.00,0.00,Elementary A,Room 2,Strip,1.00
-1,5,40.00,40.00,0.00,Elementary A,Room 2,Wax (3 coats),1.50
-1,5,40.00,40.00,0.00,Elementary A,Room 2,Carpet,1.20
-1,5,40.00,40.00,0.00,Elementary A,Room 3,Deep Clean,1.75
-1,5,40.00,40.00,0.00,Elementary A,Room 3,Strip,0.20
-2,5,40.00,37.70,2.30,Elementary A,Room 3,Strip,0.80
-2,5,40.00,37.70,2.30,Elementary A,Room 3,Wax (3 coats),1.50
-2,5,40.00,37.70,2.30,Elementary A,Room 3,Carpet,0.80
-2,5,40.00,37.70,2.30,Elementary A,Office,Deep Clean,3.00
-2,5,40.00,37.70,2.30,Elementary A,Office,Strip,1.33
-2,5,40.00,37.70,2.30,Elementary A,Office,Wax (3 coats),2.00
-2,5,40.00,37.70,2.30,Elementary A,Office,Carpet,1.60
-2,5,40.00,37.70,2.30,Elementary C,Multi-use,Deep Clean,7.50
-2,5,40.00,37.70,2.30,Elementary C,Multi-use,Strip,6.67
-2,5,40.00,37.70,2.30,Elementary C,Multi-use,Wax (3 coats),10.00
-2,5,40.00,37.70,2.30,Elementary C,Multi-use,Carpet,2.00
-2,5,40.00,37.70,2.30,MULTI-SCHOOL,TRANSITION,Transition / Logistics,0.50
-3,3,24.00,0.00,24.00,,,,
-4,4,32.00,0.00,32.00,,,,
-5,4,32.00,0.00,32.00,,,,
-6,2,16.00,0.00,16.00,,,,
-7,4,32.00,0.00,32.00,,,,
-8,4,32.00,0.00,32.00,,,,
-9,4,32.00,0.00,32.00,,,,
-10,4,32.00,11.00,21.00,Elementary C,Room 1,Deep Clean,2.00
-10,4,32.00,11.00,21.00,Elementary C,Room 1,Strip,1.00
-10,4,32.00,11.00,21.00,Elementary C,Room 1,Wax (3 coats),1.50
-10,4,32.00,11.00,21.00,Elementary C,Room 1,Carpet,1.00
-10,4,32.00,11.00,21.00,Elementary C,Room 2,Deep Clean,2.00
-10,4,32.00,11.00,21.00,Elementary C,Room 2,Strip,1.00
-10,4,32.00,11.00,21.00,Elementary C,Room 2,Wax (3 coats),1.50
-10,4,32.00,11.00,21.00,Elementary C,Room 2,Carpet,1.00
+day,effective_staff,general_staff,carpet_staff,general_capacity_hours,carpet_capacity_hours,daily_capacity_productive_hours,general_used_capacity_hours,carpet_used_capacity_hours,used_capacity_hours,general_unused_capacity_hours,carpet_unused_capacity_hours,unused_capacity_hours,active_school_name,day_status_note,crew_type,school_name,building_name,zone_name,room_name,phase_name,available_day,hours_done,note
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General,Elementary A,Main,South,Room 3,Deep Clean,1,1.75,
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General,Elementary A,Main,South,Room 3,Strip,1,1.00,
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General,Elementary A,Main,South,Room 3,Wax (3 coats),1,1.50,
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General,Elementary A,Office,Admin,Office,Deep Clean,1,3.00,
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General,Elementary A,Office,Admin,Office,Strip,1,1.33,
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General,Elementary A,Office,Admin,Office,Wax (3 coats),1,2.00,
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General Assist,Elementary A,Main,South,Room 3,Carpet,1,0.80,
+5,4,4,0,27.00,0.00,27.00,12.98,0.00,12.98,14.02,0.00,14.02,Elementary A,General crew working Elementary A; general crew helping with carpet work at Elementary A.,General Assist,Elementary A,Office,Admin,Office,Carpet,1,1.60,
+6,2,2,0,13.50,0.00,13.50,13.50,0.00,13.50,0.00,0.00,0.00,Elementary C,General crew working available rooms at Elementary C while blocked rooms are deferred; no carpet staff reserved today.,General,Elementary C,Main,Shared,Multi-use,Deep Clean,1,7.50,
+6,2,2,0,13.50,0.00,13.50,13.50,0.00,13.50,0.00,0.00,0.00,Elementary C,General crew working available rooms at Elementary C while blocked rooms are deferred; no carpet staff reserved today.,General,Elementary C,Main,Shared,Multi-use,Strip,1,6.00,
+7,4,4,0,27.00,0.00,27.00,12.67,0.00,12.67,14.33,0.00,14.33,Elementary C,General crew working Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Shared,Multi-use,Strip,1,0.67,
+7,4,4,0,27.00,0.00,27.00,12.67,0.00,12.67,14.33,0.00,14.33,Elementary C,General crew working Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Shared,Multi-use,Wax (3 coats),1,10.00,
+7,4,4,0,27.00,0.00,27.00,12.67,0.00,12.67,14.33,0.00,14.33,Elementary C,General crew working Elementary C; general crew helping with carpet work at Elementary C.,General Assist,Elementary C,Main,Shared,Multi-use,Carpet,1,2.00,
+8,4,4,0,27.00,0.00,27.00,0.00,0.00,0.00,27.00,0.00,27.00,,General crew idle; no carpet staff reserved today.,,,,,,,,,
+9,4,4,0,27.00,0.00,27.00,0.00,0.00,0.00,27.00,0.00,27.00,,General crew idle; no carpet staff reserved today.,,,,,,,,,
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Classrooms,Room 1,Deep Clean,10,2.00,Blocked until summer school releases
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Classrooms,Room 1,Strip,10,1.00,Blocked until summer school releases
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Classrooms,Room 1,Wax (3 coats),10,1.50,Blocked until summer school releases
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Classrooms,Room 2,Deep Clean,10,2.00,Blocked until summer school releases
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Classrooms,Room 2,Strip,10,1.00,Blocked until summer school releases
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General,Elementary C,Main,Classrooms,Room 2,Wax (3 coats),10,1.50,Blocked until summer school releases
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General Assist,Elementary C,Main,Classrooms,Room 1,Carpet,10,1.00,Blocked until summer school releases
+10,4,4,0,27.00,0.00,27.00,11.00,0.00,11.00,16.00,0.00,16.00,Elementary C,General crew cleaning deferred rooms at Elementary C; general crew helping with carpet work at Elementary C.,General Assist,Elementary C,Main,Classrooms,Room 2,Carpet,10,1.00,Blocked until summer school releases
