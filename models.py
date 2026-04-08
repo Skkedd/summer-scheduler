@@ -66,6 +66,9 @@ class ScheduleSettings:
     cleanup_start_time: str = "3:30 PM"
     day_end_time: str = "4:00 PM"
 
+    schedule_start_date: str = "2026-06-01"
+    work_on_weekends: bool = False
+
     @property
     def non_productive_hours_per_staff_per_day(self) -> float:
         return (

@@ -1,4 +1,5 @@
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
+    QScrollArea,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -27,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from calendar_math import format_workday_label
 from data_loader import (
     load_progress,
     load_rooms,
@@ -35,7 +38,9 @@ from data_loader import (
     validate_workbook,
 )
 from exporter import create_input_template, export_result_workbook
+from models import StaffingDay
 from scheduler import run_scheduler
+from timeblock_generator import format_time_blocks_for_text
 
 
 def fmt_hours(value: float) -> str:
@@ -433,7 +438,7 @@ class SchedulerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Summer Scheduler")
-        self.resize(1500, 900)
+        self.resize(1600, 950)
 
         self.result = None
         self.settings = None
@@ -443,6 +448,7 @@ class SchedulerWindow(QMainWindow):
         self.progress_entries = []
 
         self.current_theme = "dark"
+        self.staffing_overrides = []
 
         self._build_ui()
         self._apply_theme()
@@ -469,14 +475,30 @@ class SchedulerWindow(QMainWindow):
         outer_layout.setSpacing(12)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
         outer_layout.addWidget(splitter)
 
+        # --- LEFT PANEL (SCROLLABLE) ---
         left_panel = self._build_left_panel()
-        right_panel = self._build_run_right_panel()
+        left_panel.setMinimumWidth(400)
 
-        splitter.addWidget(left_panel)
+        left_scroll = QScrollArea()
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        left_scroll.setWidget(left_panel)
+
+        # --- RIGHT PANEL ---
+        right_panel = self._build_run_right_panel()
+        right_panel.setMinimumWidth(900)
+
+        splitter.addWidget(left_scroll)
         splitter.addWidget(right_panel)
-        splitter.setSizes([360, 1100])
+
+        # Give the right panel more stretch, but keep left usable
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([430, 1150])
 
         return root
 
@@ -530,8 +552,10 @@ class SchedulerWindow(QMainWindow):
         run_form = QFormLayout(run_group)
 
         self.schedule_name_edit = QLineEdit()
+        self.schedule_start_date_edit = QLineEdit()
         self.current_day_edit = QLineEdit()
         self.target_end_day_edit = QLineEdit()
+        self.work_on_weekends_check = QCheckBox("Count weekends as workdays")
 
         self.include_deep_clean_check = QCheckBox("Include Deep Clean")
         self.include_strip_check = QCheckBox("Include Strip")
@@ -551,8 +575,10 @@ class SchedulerWindow(QMainWindow):
         )
 
         run_form.addRow("Schedule Name", self.schedule_name_edit)
+        run_form.addRow("Start Date", self.schedule_start_date_edit)
         run_form.addRow("Current Day", self.current_day_edit)
         run_form.addRow("Target End Day", self.target_end_day_edit)
+        run_form.addRow("", self.work_on_weekends_check)
         run_form.addRow("", self.include_deep_clean_check)
         run_form.addRow("", self.include_strip_check)
         run_form.addRow("", self.include_wax_check)
@@ -561,6 +587,60 @@ class SchedulerWindow(QMainWindow):
         run_form.addRow("", self.general_can_do_carpet_check)
 
         layout.addWidget(run_group)
+
+        staffing_group = QGroupBox("Staffing Overrides")
+        staffing_layout = QVBoxLayout(staffing_group)
+
+        staffing_top = QHBoxLayout()
+        self.override_mode_combo = QComboBox()
+        self.override_mode_combo.addItems(["Global", "Weekly", "Daily"])
+        self.override_mode_combo.currentTextChanged.connect(self._refresh_override_mode_label)
+
+        self.override_anchor_label = QLabel("Week #")
+        self.override_anchor_edit = QLineEdit("1")
+        self.override_length_label = QLabel("Span")
+        self.override_length_edit = QLineEdit("1")
+
+        staffing_top.addWidget(QLabel("Mode"))
+        staffing_top.addWidget(self.override_mode_combo)
+        staffing_top.addWidget(self.override_anchor_label)
+        staffing_top.addWidget(self.override_anchor_edit)
+        staffing_top.addWidget(self.override_length_label)
+        staffing_top.addWidget(self.override_length_edit)
+
+        staffing_layout.addLayout(staffing_top)
+
+        staffing_form = QFormLayout()
+        self.override_cleaning_staff_edit = QLineEdit("4")
+        self.override_carpet_staff_edit = QLineEdit("0")
+        self.override_outside_help_edit = QLineEdit("0")
+        self.override_absences_edit = QLineEdit("0")
+
+        staffing_form.addRow("Cleaning Staff", self.override_cleaning_staff_edit)
+        staffing_form.addRow("Carpet Staff", self.override_carpet_staff_edit)
+        staffing_form.addRow("Outside Help", self.override_outside_help_edit)
+        staffing_form.addRow("Absences", self.override_absences_edit)
+
+        staffing_layout.addLayout(staffing_form)
+
+        staffing_button_row = QHBoxLayout()
+        self.apply_override_button = QPushButton("Apply Override")
+        self.apply_override_button.clicked.connect(self._apply_staffing_override)
+
+        self.clear_overrides_button = QPushButton("Clear Overrides")
+        self.clear_overrides_button.clicked.connect(self._clear_staffing_overrides)
+
+        staffing_button_row.addWidget(self.apply_override_button)
+        staffing_button_row.addWidget(self.clear_overrides_button)
+        staffing_layout.addLayout(staffing_button_row)
+
+        self.override_preview_text = QPlainTextEdit()
+        self.override_preview_text.setReadOnly(True)
+        self.override_preview_text.setMaximumHeight(110)
+        self.override_preview_text.setPlainText("No staffing overrides yet.")
+        staffing_layout.addWidget(self.override_preview_text)
+
+        layout.addWidget(staffing_group)
 
         time_group = QGroupBox("Daily Time Model")
         time_form = QFormLayout(time_group)
@@ -595,10 +675,9 @@ class SchedulerWindow(QMainWindow):
 
         notes = QLabel(
             "Run tab = scenario controls + fast answer.\n\n"
-            "If the schedule misses, you should be able to see that here without digging.\n"
-            "Schedule details live on the Schedule tab.\n"
-            "Exports live on the Export tab.\n"
-            "Workbook/template tools live on the Data tab."
+            "This version adds staffing overrides from the UI.\n"
+            "Use Global, Weekly or Daily mode, apply an override, then run.\n"
+            "Schedule tab now shows a worker-facing day outlook."
         )
         notes.setWordWrap(True)
         notes.setObjectName("mutedLabel")
@@ -607,6 +686,8 @@ class SchedulerWindow(QMainWindow):
         layout.addWidget(info_group)
         layout.addStretch(1)
 
+        self._refresh_override_mode_label()
+        panel.adjustSize()
         return panel
 
     def _build_run_right_panel(self) -> QWidget:
@@ -632,7 +713,7 @@ class SchedulerWindow(QMainWindow):
         cards_row = QHBoxLayout()
         cards_row.setSpacing(12)
 
-        self.finish_day_card = SummaryCard("Projected Finish Day", "-")
+        self.finish_day_card = SummaryCard("Projected Finish", "-")
         self.deadline_card = SummaryCard("Deadline Met", "-")
         self.backlog_card = SummaryCard("Remaining Backlog", "-")
         self.recommendation_card = SummaryCard("Recommendation Status", "-")
@@ -676,10 +757,11 @@ class SchedulerWindow(QMainWindow):
         days_group = QGroupBox("Day-by-Day Schedule")
         days_layout = QVBoxLayout(days_group)
 
-        self.days_table = QTableWidget(0, 9)
+        self.days_table = QTableWidget(0, 10)
         self.days_table.setHorizontalHeaderLabels(
             [
                 "Day",
+                "Date",
                 "Active School",
                 "General Staff",
                 "Carpet Staff",
@@ -698,7 +780,7 @@ class SchedulerWindow(QMainWindow):
             QHeaderView.ResizeMode.ResizeToContents
         )
         self.days_table.horizontalHeader().setSectionResizeMode(
-            8, QHeaderView.ResizeMode.Stretch
+            9, QHeaderView.ResizeMode.Stretch
         )
         self.days_table.itemSelectionChanged.connect(self._populate_day_detail)
 
@@ -749,9 +831,19 @@ class SchedulerWindow(QMainWindow):
         detail_layout.addWidget(self.day_detail_text)
         bottom_layout.addWidget(detail_group)
 
+        outlook_group = QGroupBox("Day Outlook")
+        outlook_layout = QVBoxLayout(outlook_group)
+
+        self.day_outlook_text = QPlainTextEdit()
+        self.day_outlook_text.setReadOnly(True)
+        self.day_outlook_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+
+        outlook_layout.addWidget(self.day_outlook_text)
+        bottom_layout.addWidget(outlook_group)
+
         detail_splitter.addWidget(top_half)
         detail_splitter.addWidget(bottom_half)
-        detail_splitter.setSizes([420, 320])
+        detail_splitter.setSizes([380, 430])
 
         layout.addWidget(detail_splitter)
         return panel
@@ -833,7 +925,7 @@ class SchedulerWindow(QMainWindow):
             "- Rooms\n"
             "- Staffing\n"
             "- Progress (optional)\n\n"
-            "This app now reads Excel workbooks only."
+            "Calendar-enabled Excel workflow is active."
         )
         workbook_layout.addWidget(self.data_status_text)
 
@@ -880,6 +972,46 @@ class SchedulerWindow(QMainWindow):
         carpet_on = self.include_carpet_check.isChecked()
         self.general_can_do_carpet_check.setEnabled(carpet_on)
 
+    def _refresh_override_mode_label(self) -> None:
+        mode = self.override_mode_combo.currentText()
+
+        if mode == "Global":
+            self.override_anchor_label.setVisible(False)
+            self.override_anchor_edit.setVisible(False)
+            self.override_length_label.setVisible(False)
+            self.override_length_edit.setVisible(False)
+
+            self.override_anchor_edit.setText("1")
+            self.override_length_edit.setText("1")
+
+        elif mode == "Weekly":
+            self.override_anchor_label.setVisible(True)
+            self.override_anchor_edit.setVisible(True)
+            self.override_length_label.setVisible(True)
+            self.override_length_edit.setVisible(True)
+
+            self.override_anchor_label.setText("Start Week")
+            self.override_length_label.setText("Duration (weeks)")
+
+            if not self.override_anchor_edit.text().strip():
+                self.override_anchor_edit.setText("1")
+            if not self.override_length_edit.text().strip():
+                self.override_length_edit.setText("1")
+
+        else:
+            self.override_anchor_label.setVisible(True)
+            self.override_anchor_edit.setVisible(True)
+            self.override_length_label.setVisible(True)
+            self.override_length_edit.setVisible(True)
+
+            self.override_anchor_label.setText("Start Day")
+            self.override_length_label.setText("Duration (days)")
+
+            if not self.override_anchor_edit.text().strip():
+                self.override_anchor_edit.setText("1")
+            if not self.override_length_edit.text().strip():
+                self.override_length_edit.setText("1")
+
     def _resolve_workbook_path(self) -> str:
         raw_path = self.workbook_path_edit.text().strip()
         if not raw_path:
@@ -906,8 +1038,10 @@ class SchedulerWindow(QMainWindow):
             return
 
         self.schedule_name_edit.setText(settings.schedule_name)
+        self.schedule_start_date_edit.setText(settings.schedule_start_date)
         self.current_day_edit.setText(str(settings.current_day))
         self.target_end_day_edit.setText(str(settings.target_end_day))
+        self.work_on_weekends_check.setChecked(settings.work_on_weekends)
 
         self.include_deep_clean_check.setChecked(settings.include_deep_clean)
         self.include_strip_check.setChecked(settings.include_strip)
@@ -929,8 +1063,12 @@ class SchedulerWindow(QMainWindow):
         self.settings.schedule_name = (
             self.schedule_name_edit.text().strip() or self.settings.schedule_name
         )
+        self.settings.schedule_start_date = (
+            self.schedule_start_date_edit.text().strip() or self.settings.schedule_start_date
+        )
         self.settings.current_day = int(self.current_day_edit.text().strip())
         self.settings.target_end_day = int(self.target_end_day_edit.text().strip())
+        self.settings.work_on_weekends = self.work_on_weekends_check.isChecked()
 
         self.settings.include_deep_clean = self.include_deep_clean_check.isChecked()
         self.settings.include_strip = self.include_strip_check.isChecked()
@@ -953,6 +1091,109 @@ class SchedulerWindow(QMainWindow):
 
         self.settings.validate_or_normalize()
 
+    def _render_override_preview(self) -> None:
+        if not self.staffing_overrides:
+            self.override_preview_text.setPlainText("No staffing overrides yet.")
+            return
+
+        lines = []
+        for index, item in enumerate(self.staffing_overrides, start=1):
+            lines.append(
+                f'{index}. {item["label"]} | Cleaning {item["cleaning_staff"]} | '
+                f'Carpet {item["carpet_staff"]} | Outside {item["outside_help"]} | '
+                f'Absences {item["absences"]}'
+            )
+
+        self.override_preview_text.setPlainText("\n".join(lines))
+
+    def _apply_staffing_override(self) -> None:
+        try:
+            mode = self.override_mode_combo.currentText()
+            target_end_day = int(self.target_end_day_edit.text().strip())
+
+            cleaning_staff = int(self.override_cleaning_staff_edit.text().strip())
+            carpet_staff = int(self.override_carpet_staff_edit.text().strip())
+            outside_help = int(self.override_outside_help_edit.text().strip())
+            absences = int(self.override_absences_edit.text().strip())
+
+            if mode == "Global":
+                day_start = 1
+                day_end = target_end_day
+                label = f"Global Days 1-{target_end_day}"
+            elif mode == "Weekly":
+                week_num = int(self.override_anchor_edit.text().strip())
+                week_span = int(self.override_length_edit.text().strip())
+                day_start = ((week_num - 1) * 5) + 1
+                day_end = day_start + (week_span * 5) - 1
+                label = f"Week {week_num} for {week_span} week(s) -> Days {day_start}-{day_end}"
+            else:
+                start_day = int(self.override_anchor_edit.text().strip())
+                day_span = int(self.override_length_edit.text().strip())
+                day_start = start_day
+                day_end = start_day + day_span - 1
+                label = f"Days {day_start}-{day_end}"
+
+            self.staffing_overrides.append(
+                {
+                    "mode": mode,
+                    "day_start": day_start,
+                    "day_end": day_end,
+                    "cleaning_staff": cleaning_staff,
+                    "carpet_staff": carpet_staff,
+                    "outside_help": outside_help,
+                    "absences": absences,
+                    "label": label,
+                }
+            )
+            self._render_override_preview()
+
+        except Exception as exc:
+            self._show_error("Override Error", str(exc))
+
+    def _clear_staffing_overrides(self) -> None:
+        self.staffing_overrides = []
+        self._render_override_preview()
+
+    def _build_effective_staffing_days(self):
+        staffing_map = {}
+
+        for item in self.staffing_days:
+            staffing_map[item.day] = StaffingDay(
+                day=item.day,
+                available_staff=item.available_staff,
+                carpet_staff_reserved=item.carpet_staff_reserved,
+                absences=item.absences,
+                temporary_help=item.temporary_help,
+            )
+
+        max_day = max(
+            [self.settings.target_end_day]
+            + [item.day for item in self.staffing_days]
+            + [ov["day_end"] for ov in self.staffing_overrides] if self.staffing_overrides else [self.settings.target_end_day]
+        )
+
+        for day in range(1, max_day + 1):
+            if day not in staffing_map:
+                staffing_map[day] = StaffingDay(
+                    day=day,
+                    available_staff=0,
+                    carpet_staff_reserved=0,
+                    absences=0,
+                    temporary_help=0,
+                )
+
+        for override in self.staffing_overrides:
+            for day in range(override["day_start"], override["day_end"] + 1):
+                staffing_map[day] = StaffingDay(
+                    day=day,
+                    available_staff=override["cleaning_staff"] + override["carpet_staff"],
+                    carpet_staff_reserved=override["carpet_staff"],
+                    absences=override["absences"],
+                    temporary_help=override["outside_help"],
+                )
+
+        return [staffing_map[day] for day in sorted(staffing_map.keys())]
+
     def run_scheduler_from_ui(self) -> None:
         try:
             workbook_path = self._resolve_workbook_path()
@@ -966,11 +1207,12 @@ class SchedulerWindow(QMainWindow):
             self.progress_entries = load_progress(workbook_path)
 
             self._apply_form_overrides_to_settings()
+            effective_staffing_days = self._build_effective_staffing_days()
 
             self.result = run_scheduler(
                 rooms=self.rooms,
                 settings=self.settings,
-                staffing_days=self.staffing_days,
+                staffing_days=effective_staffing_days,
                 progress_entries=self.progress_entries,
             )
 
@@ -987,27 +1229,46 @@ class SchedulerWindow(QMainWindow):
             error_text = f"{type(exc).__name__}: {exc}"
             self.summary_text.setPlainText(error_text)
             self.day_detail_text.setPlainText(error_text)
+            self.day_outlook_text.setPlainText(error_text)
             self.days_table.setRowCount(0)
             self.worklog_table.setRowCount(0)
             self.export_status_text.setPlainText(error_text)
             self._show_error("Scheduler Error", error_text)
 
     def _populate_summary(self) -> None:
-        if not self.result:
+        if not self.result or not self.settings:
             return
 
         rec = self.result.recommendation
 
-        self.finish_day_card.set_value(f"Day {self.result.finish_day}")
+        finish_label = format_workday_label(
+            self.settings.schedule_start_date,
+            self.result.finish_day,
+            self.settings.work_on_weekends,
+        )
+        target_label = format_workday_label(
+            self.settings.schedule_start_date,
+            self.result.target_end_day,
+            self.settings.work_on_weekends,
+        )
+        current_label = format_workday_label(
+            self.settings.schedule_start_date,
+            self.result.current_day,
+            self.settings.work_on_weekends,
+        )
+
+        self.finish_day_card.set_value(finish_label)
         self.deadline_card.set_value(yes_no(self.result.met_deadline))
         self.backlog_card.set_value(f"{fmt_hours(self.result.remaining_backlog_hours)} hrs")
         self.recommendation_card.set_value(rec.status_label)
 
         summary_lines = [
             f"Schedule Name: {self.result.schedule_name}",
-            f"Current Day: {self.result.current_day}",
-            f"Target End Day: {self.result.target_end_day}",
-            f"Projected Finish Day: {self.result.finish_day}",
+            f"Start Date: {self.settings.schedule_start_date}",
+            f"Weekends Count As Workdays: {yes_no(self.settings.work_on_weekends)}",
+            f"Current Position: {current_label}",
+            f"Target End: {target_label}",
+            f"Projected Finish: {finish_label}",
             f"Deadline Met: {yes_no(self.result.met_deadline)}",
             "",
             f"Total Planned Hours: {fmt_hours(self.result.total_planned_hours)}",
@@ -1025,6 +1286,8 @@ class SchedulerWindow(QMainWindow):
             f"Capacity To Deadline: {fmt_hours(rec.capacity_to_deadline_hours)}",
             f"Extra Staff-Days Needed: {fmt_hours(rec.extra_staff_days_needed)}",
             f"Action: {rec.recommended_action}",
+            "",
+            f"UI Staffing Overrides Loaded: {len(self.staffing_overrides)}",
             "",
             "Daily Time Model",
             f"Shift Hours: {fmt_hours(self.settings.scheduled_shift_hours_per_day)}",
@@ -1046,40 +1309,39 @@ class SchedulerWindow(QMainWindow):
         self.days_table.setRowCount(0)
         self.worklog_table.setRowCount(0)
         self.day_detail_text.clear()
+        self.day_outlook_text.clear()
 
-        if not self.result:
+        if not self.result or not self.settings:
             return
 
         days = self.result.days
         self.days_table.setRowCount(len(days))
 
         for row, day in enumerate(days):
+            day_label = format_workday_label(
+                self.settings.schedule_start_date,
+                day.day,
+                self.settings.work_on_weekends,
+            )
+            date_only = day_label.split(" - ", 1)[1] if " - " in day_label else day_label
+
             self.days_table.setItem(row, 0, self._make_table_item(str(day.day)))
-            self.days_table.setItem(
-                row, 1, self._make_table_item(day.active_school_name or "")
-            )
-            self.days_table.setItem(row, 2, self._make_table_item(str(day.general_staff)))
-            self.days_table.setItem(row, 3, self._make_table_item(str(day.carpet_staff)))
-            self.days_table.setItem(
-                row, 4, self._make_table_item(fmt_hours(day.daily_capacity))
-            )
-            self.days_table.setItem(
-                row, 5, self._make_table_item(fmt_hours(day.used_capacity))
-            )
-            self.days_table.setItem(
-                row, 6, self._make_table_item(fmt_hours(day.unused_capacity))
-            )
-            self.days_table.setItem(
-                row, 7, self._make_table_item(str(len(day.work_log)))
-            )
-            self.days_table.setItem(row, 8, self._make_table_item(day.status_note))
+            self.days_table.setItem(row, 1, self._make_table_item(date_only))
+            self.days_table.setItem(row, 2, self._make_table_item(day.active_school_name or ""))
+            self.days_table.setItem(row, 3, self._make_table_item(str(day.general_staff)))
+            self.days_table.setItem(row, 4, self._make_table_item(str(day.carpet_staff)))
+            self.days_table.setItem(row, 5, self._make_table_item(fmt_hours(day.daily_capacity)))
+            self.days_table.setItem(row, 6, self._make_table_item(fmt_hours(day.used_capacity)))
+            self.days_table.setItem(row, 7, self._make_table_item(fmt_hours(day.unused_capacity)))
+            self.days_table.setItem(row, 8, self._make_table_item(str(len(day.work_log))))
+            self.days_table.setItem(row, 9, self._make_table_item(day.status_note))
 
         if days:
             self.days_table.selectRow(0)
             self._populate_day_detail()
 
     def _populate_day_detail(self) -> None:
-        if not self.result:
+        if not self.result or not self.settings:
             return
 
         selected_rows = self.days_table.selectionModel().selectedRows()
@@ -1098,13 +1360,17 @@ class SchedulerWindow(QMainWindow):
             self.worklog_table.setItem(row, 3, self._make_table_item(item.zone_name))
             self.worklog_table.setItem(row, 4, self._make_table_item(item.room_name))
             self.worklog_table.setItem(row, 5, self._make_table_item(item.phase_name))
-            self.worklog_table.setItem(
-                row, 6, self._make_table_item(fmt_hours(item.hours_done))
-            )
+            self.worklog_table.setItem(row, 6, self._make_table_item(fmt_hours(item.hours_done)))
             self.worklog_table.setItem(row, 7, self._make_table_item(item.note or ""))
 
+        day_label = format_workday_label(
+            self.settings.schedule_start_date,
+            day.day,
+            self.settings.work_on_weekends,
+        )
+
         detail_lines = [
-            f"Day {day.day}",
+            day_label,
             f"Active School: {day.active_school_name or 'None'}",
             f"Day Note: {day.status_note or 'None'}",
             "",
@@ -1128,15 +1394,16 @@ class SchedulerWindow(QMainWindow):
         ]
 
         self.day_detail_text.setPlainText("\n".join(detail_lines))
+        self.day_outlook_text.setPlainText(format_time_blocks_for_text(day, self.settings))
 
     def _export_result_workbook(self) -> None:
-        if not self.result:
+        if not self.result or not self.settings:
             self._show_error("Nothing To Export", "Run the scheduler first.")
             return
 
         try:
             output_folder = self.export_path_edit.text().strip() or "output"
-            file_path = export_result_workbook(self.result, output_folder)
+            file_path = export_result_workbook(self.result, self.settings, output_folder)
             self.export_status_text.setPlainText(
                 f"Export complete:\n{file_path}"
             )

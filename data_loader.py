@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 
 from openpyxl import load_workbook
 
+from calendar_math import parse_date_string
 from models import ProgressEntry, Room, School, ScheduleSettings, StaffingDay
 
 
@@ -198,6 +199,8 @@ def load_settings(workbook_path: str) -> ScheduleSettings:
         second_break_time=parse_str(raw, "second_break_time", "2:00 PM"),
         cleanup_start_time=parse_str(raw, "cleanup_start_time", "3:30 PM"),
         day_end_time=parse_str(raw, "day_end_time", "4:00 PM"),
+        schedule_start_date=parse_str(raw, "schedule_start_date", "2026-06-01"),
+        work_on_weekends=parse_bool(raw.get("work_on_weekends", "False")),
     )
 
     settings.validate_or_normalize()
@@ -329,5 +332,12 @@ def validate_workbook(workbook_path: str) -> List[str]:
     for sheet in required_sheets:
         if sheet not in wb.sheetnames:
             errors.append(f"Missing required sheet: {sheet}")
+
+    if not errors:
+        try:
+            raw = _load_setup_raw(workbook_path)
+            parse_date_string(raw.get("schedule_start_date", ""))
+        except Exception as exc:
+            errors.append(f"Invalid schedule_start_date in Setup sheet: {exc}")
 
     return errors

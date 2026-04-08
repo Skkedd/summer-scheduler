@@ -6,7 +6,9 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-from models import ScheduleResult
+from calendar_math import format_date_label, workday_to_date
+from models import ScheduleResult, ScheduleSettings
+from timeblock_generator import generate_time_blocks
 
 
 def ensure_output_folder(folder_path: str = "output") -> None:
@@ -18,7 +20,11 @@ def _bold_header(ws, row_num: int = 1) -> None:
         cell.font = Font(bold=True)
 
 
-def export_result_workbook(result: ScheduleResult, folder_path: str = "output") -> str:
+def export_result_workbook(
+    result: ScheduleResult,
+    settings: ScheduleSettings,
+    folder_path: str = "output",
+) -> str:
     ensure_output_folder(folder_path)
     file_path = os.path.join(folder_path, "summer_scheduler_output.xlsx")
 
@@ -30,9 +36,21 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
     ws = wb.create_sheet("Summary")
     summary_rows = [
         ("schedule_name", result.schedule_name),
+        ("schedule_start_date", settings.schedule_start_date),
+        ("work_on_weekends", settings.work_on_weekends),
         ("target_end_day", result.target_end_day),
         ("current_day", result.current_day),
         ("finish_day", result.finish_day),
+        (
+            "finish_date",
+            format_date_label(
+                workday_to_date(
+                    settings.schedule_start_date,
+                    result.finish_day,
+                    settings.work_on_weekends,
+                )
+            ),
+        ),
         ("met_deadline", result.met_deadline),
         ("total_planned_hours", round(result.total_planned_hours, 2)),
         ("completed_hours_before_run", round(result.completed_hours_before_run, 2)),
@@ -58,6 +76,7 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
     ws.append(
         [
             "day",
+            "work_date",
             "active_school_name",
             "status_note",
             "effective_staff",
@@ -77,9 +96,15 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
     )
     _bold_header(ws)
     for day in result.days:
+        work_date = workday_to_date(
+            settings.schedule_start_date,
+            day.day,
+            settings.work_on_weekends,
+        )
         ws.append(
             [
                 day.day,
+                format_date_label(work_date),
                 day.active_school_name,
                 day.status_note,
                 day.effective_staff,
@@ -103,6 +128,7 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
     ws.append(
         [
             "day",
+            "work_date",
             "crew_type",
             "school_name",
             "building_name",
@@ -116,10 +142,16 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
     )
     _bold_header(ws)
     for day in result.days:
+        work_date = workday_to_date(
+            settings.schedule_start_date,
+            day.day,
+            settings.work_on_weekends,
+        )
         for item in day.work_log:
             ws.append(
                 [
                     day.day,
+                    format_date_label(work_date),
                     item.crew_type,
                     item.school_name,
                     item.building_name,
@@ -142,6 +174,7 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
             "room_name",
             "phase_name",
             "available_day",
+            "available_date",
             "total_hours",
             "remaining_hours",
             "status",
@@ -157,6 +190,12 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
         else:
             status = "Not Started"
 
+        available_date = workday_to_date(
+            settings.schedule_start_date,
+            task.available_day,
+            settings.work_on_weekends,
+        )
+
         ws.append(
             [
                 task.school_name,
@@ -165,12 +204,51 @@ def export_result_workbook(result: ScheduleResult, folder_path: str = "output") 
                 task.room_name,
                 task.phase_name,
                 task.available_day,
+                format_date_label(available_date),
                 round(task.total_hours, 2),
                 round(task.remaining_hours, 2),
                 status,
                 task.notes,
             ]
         )
+
+    # Time Blocks
+    ws = wb.create_sheet("TimeBlocks")
+    ws.append(
+        [
+            "day",
+            "work_date",
+            "start_time",
+            "end_time",
+            "type",
+            "label",
+            "minutes",
+            "active_school_name",
+        ]
+    )
+    _bold_header(ws)
+
+    for day in result.days:
+        work_date = workday_to_date(
+            settings.schedule_start_date,
+            day.day,
+            settings.work_on_weekends,
+        )
+        blocks = generate_time_blocks(day, settings)
+
+        for block in blocks:
+            ws.append(
+                [
+                    day.day,
+                    format_date_label(work_date),
+                    block.get("start", ""),
+                    block.get("end", ""),
+                    block.get("type", ""),
+                    block.get("label", ""),
+                    block.get("minutes", 0),
+                    day.active_school_name,
+                ]
+            )
 
     wb.save(file_path)
     return file_path
@@ -187,6 +265,8 @@ def create_input_template(file_path: str = "data/summer_scheduler_template.xlsx"
     ws.append(["setting", "value", "description"])
     setup_rows = [
         ("schedule_name", "Summer Schedule", "Name shown in the app and exports"),
+        ("schedule_start_date", "2026-06-01", "First workday of summer cleaning"),
+        ("work_on_weekends", False, "True if Saturdays/Sundays count as workdays"),
         ("current_day", 1, "Usually 1 for a fresh run"),
         ("target_end_day", 20, "Target workday number"),
         ("scheduled_shift_hours_per_day", 8.5, "Paid shift length"),
@@ -273,7 +353,7 @@ def create_input_template(file_path: str = "data/summer_scheduler_template.xlsx"
         ]
     )
     _bold_header(ws)
-    for day in range(1, 21):
+    for day in range(1, 41):
         ws.append([day, 4, 0, 0, 0])
 
     # Progress
