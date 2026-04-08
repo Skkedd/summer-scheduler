@@ -1,11 +1,50 @@
 school_name,school_order,building_name,zone_name,room_name,room_order,carpet_sqft,tile_sqft,available_day,include_deep_clean,include_strip,include_wax,include_carpet,include_exterior,notes
-Elementary B,1,Main,Front,Room 1,1,500,350,1,True,True,True,True,False,
-Elementary B,1,Main,Front,Room 2,2,600,350,1,True,True,True,True,False,
-Elementary B,1,Main,Core,Library,3,1200,800,1,True,True,True,True,False,
-Elementary A,2,Main,North,Room 1,1,500,300,1,True,True,True,True,False,
-Elementary A,2,Main,North,Room 2,2,600,300,1,True,True,True,True,False,
-Elementary A,2,Main,South,Room 3,3,400,300,1,True,True,True,True,False,
-Elementary A,2,Office,Admin,Office,4,800,400,1,True,True,True,True,False,
-Elementary C,3,Main,Shared,Multi-use,1,1000,2000,1,True,True,True,True,False,
-Elementary C,3,Main,Classrooms,Room 1,2,500,300,10,True,True,True,True,False,Blocked until summer school releases
-Elementary C,3,Main,Classrooms,Room 2,3,500,300,10,True,True,True,True,False,Blocked until summer school releases
+
+WES,1,Main,Classrooms,K,1,777,401,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 1,2,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 2,3,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 3,4,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 4,5,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 5,6,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 6,7,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 7,8,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 8,9,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 9,10,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 10,11,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 11,12,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 12,13,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 13,14,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 14,15,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 15,16,574,296,1,True,True,True,True,False,
+WES,1,Main,Classrooms,Room 16,17,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 17,18,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 18,19,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 19,20,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 22,21,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 23,22,435,435,1,True,True,True,True,False,Half carpet
+WES,1,Main,Classrooms,Room 24,23,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 25,24,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 26,25,791,79,1,True,True,True,True,False,Walkoffs
+WES,1,Main,Classrooms,Room 27,26,791,79,1,True,True,True,True,False,Walkoffs
+
+WES,1,Main,Support,Staff Room,30,400,400,1,True,True,True,True,False,
+WES,1,Main,Support,Conference 1,31,300,0,1,True,True,True,True,False,
+WES,1,Main,Support,Conference 2,32,300,0,1,True,True,True,True,False,
+WES,1,Main,Support,Main Office,33,700,100,1,True,True,True,True,False,
+WES,1,Main,Support,New Gym,34,0,4000,1,True,True,True,False,False,
+WES,1,Main,Support,Old Gym,35,0,3000,1,True,True,True,False,False,
+WES,1,Main,Support,Kitchen Old,36,0,1500,1,True,True,True,False,False,
+WES,1,Main,Support,Kitchen New,37,0,1500,1,True,True,True,False,False,
+WES,1,Main,Support,Hallways,38,0,8000,1,True,True,True,False,False,
+
+JXW,2,Main,Support,Hallways,1,0,9000,1,True,True,True,False,False,
+JXW,2,Main,Support,Gym,2,0,4000,1,True,True,True,False,False,
+JXW,2,Main,Support,Kitchen,3,0,2000,1,True,True,True,False,False,
+JXW,2,Main,Support,Main Office,4,800,0,1,True,True,True,True,False,
+JXW,2,Main,Support,Staff Room,5,400,400,1,True,True,True,True,False,
+
+RLS,3,Main,Support,Hallways,1,0,8000,1,True,True,True,False,False,
+RLS,3,Main,Support,Gym,2,0,4000,1,True,True,True,False,False,
+RLS,3,Main,Support,Kitchen,3,0,2000,1,True,True,True,False,False,
+RLS,3,Main,Support,Main Office,4,800,0,1,True,True,True,True,False,
+RLS,3,Main,Support,Staff Room,5,800,0,1,True,True,True,True,False,

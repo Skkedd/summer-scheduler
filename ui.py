@@ -1,12 +1,13 @@
 import sys
 from pathlib import Path
-from typing import List
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QGroupBox,
@@ -21,11 +22,19 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from data_loader import load_progress, load_rooms, load_settings, load_staffing
+from data_loader import (
+    load_progress,
+    load_rooms,
+    load_settings,
+    load_staffing,
+    validate_workbook,
+)
+from exporter import create_input_template, export_result_workbook
 from scheduler import run_scheduler
 
 
@@ -35,6 +44,365 @@ def fmt_hours(value: float) -> str:
 
 def yes_no(value: bool) -> str:
     return "Yes" if value else "No"
+
+
+def get_dark_stylesheet() -> str:
+    return """
+    QWidget {
+        font-size: 13px;
+        color: #e5e7eb;
+    }
+
+    QMainWindow {
+        background: #111827;
+    }
+
+    QLabel {
+        color: #e5e7eb;
+    }
+
+    QTabWidget::pane {
+        border: none;
+        background: #111827;
+    }
+
+    QTabBar::tab {
+        background: #1f2937;
+        border: 1px solid #374151;
+        padding: 8px 14px;
+        margin-right: 4px;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        font-weight: 600;
+        color: #d1d5db;
+    }
+
+    QTabBar::tab:selected {
+        background: #243041;
+        color: #ffffff;
+    }
+
+    #sidePanel {
+        background: #1f2937;
+        border: 1px solid #374151;
+        border-radius: 12px;
+    }
+
+    #panelTitle {
+        font-size: 20px;
+        font-weight: 700;
+        color: #f9fafb;
+    }
+
+    #pageTitle {
+        font-size: 24px;
+        font-weight: 700;
+        color: #f9fafb;
+    }
+
+    #statusChip {
+        background: #1e3a5f;
+        color: #dbeafe;
+        border: 1px solid #31537c;
+        border-radius: 10px;
+        padding: 6px 10px;
+        font-weight: 600;
+    }
+
+    #summaryCard {
+        background: #1f2937;
+        border: 1px solid #374151;
+        border-radius: 12px;
+    }
+
+    #summaryCardTitle {
+        color: #9ca3af;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    #summaryCardValue {
+        color: #f9fafb;
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    #primaryButton {
+        background: #2563eb;
+        color: white;
+        font-weight: 700;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #2563eb;
+    }
+
+    #primaryButton:hover {
+        background: #1d4ed8;
+    }
+
+    QGroupBox {
+        background: #1f2937;
+        color: #f9fafb;
+        border: 1px solid #374151;
+        border-radius: 12px;
+        margin-top: 10px;
+        font-weight: 700;
+    }
+
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        left: 12px;
+        padding: 0 6px 0 6px;
+        color: #d1d5db;
+    }
+
+    QPlainTextEdit, QLineEdit, QTableWidget, QComboBox {
+        background: #111827;
+        color: #f9fafb;
+        border: 1px solid #4b5563;
+        border-radius: 8px;
+        selection-background-color: #1d4ed8;
+        selection-color: #ffffff;
+    }
+
+    QComboBox {
+        padding: 4px 8px;
+    }
+
+    QComboBox QAbstractItemView {
+        background: #111827;
+        color: #f9fafb;
+        border: 1px solid #4b5563;
+        selection-background-color: #1d4ed8;
+    }
+
+    QHeaderView::section {
+        background: #0f172a;
+        color: #ffffff;
+        padding: 6px;
+        border: none;
+        font-weight: 600;
+    }
+
+    QPushButton {
+        padding: 8px 12px;
+        border: 1px solid #4b5563;
+        border-radius: 8px;
+        background: #1f2937;
+        color: #f9fafb;
+        font-weight: 600;
+    }
+
+    QPushButton:hover {
+        background: #273548;
+    }
+
+    QCheckBox {
+        color: #e5e7eb;
+    }
+
+    QMessageBox {
+        background-color: #1f2937;
+    }
+
+    QMessageBox QLabel {
+        color: #f9fafb;
+        min-width: 320px;
+    }
+
+    QMessageBox QPushButton {
+        min-width: 80px;
+        padding: 6px 12px;
+        background: #111827;
+        color: #f9fafb;
+        border: 1px solid #4b5563;
+        border-radius: 8px;
+    }
+
+    #mutedLabel {
+        color: #9ca3af;
+    }
+    """
+
+
+def get_light_stylesheet() -> str:
+    return """
+    QWidget {
+        font-size: 13px;
+        color: #1f2937;
+    }
+
+    QMainWindow {
+        background: #f4f6f8;
+    }
+
+    QLabel {
+        color: #1f2937;
+    }
+
+    QTabWidget::pane {
+        border: none;
+        background: #f4f6f8;
+    }
+
+    QTabBar::tab {
+        background: #e8edf5;
+        border: 1px solid #cfd6df;
+        padding: 8px 14px;
+        margin-right: 4px;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        font-weight: 600;
+    }
+
+    QTabBar::tab:selected {
+        background: #ffffff;
+        color: #111827;
+    }
+
+    #sidePanel {
+        background: #ffffff;
+        border: 1px solid #d9dee5;
+        border-radius: 12px;
+    }
+
+    #panelTitle {
+        font-size: 20px;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    #pageTitle {
+        font-size: 24px;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    #statusChip {
+        background: #e8eefc;
+        color: #1f3a6d;
+        border: 1px solid #cdd9f7;
+        border-radius: 10px;
+        padding: 6px 10px;
+        font-weight: 600;
+    }
+
+    #summaryCard {
+        background: #ffffff;
+        border: 1px solid #d9dee5;
+        border-radius: 12px;
+    }
+
+    #summaryCardTitle {
+        color: #5a6473;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    #summaryCardValue {
+        color: #111827;
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    #primaryButton {
+        background: #1f6feb;
+        color: white;
+        font-weight: 700;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #1f6feb;
+    }
+
+    #primaryButton:hover {
+        background: #1a62cf;
+    }
+
+    QGroupBox {
+        background: #ffffff;
+        color: #111827;
+        border: 1px solid #d9dee5;
+        border-radius: 12px;
+        margin-top: 10px;
+        font-weight: 700;
+    }
+
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        left: 12px;
+        padding: 0 6px 0 6px;
+        color: #374151;
+    }
+
+    QPlainTextEdit, QLineEdit, QTableWidget, QComboBox {
+        background: #ffffff;
+        color: #111827;
+        border: 1px solid #cfd6df;
+        border-radius: 8px;
+        selection-background-color: #dbeafe;
+        selection-color: #111827;
+    }
+
+    QComboBox {
+        padding: 4px 8px;
+    }
+
+    QComboBox QAbstractItemView {
+        background: #ffffff;
+        color: #111827;
+        border: 1px solid #cfd6df;
+        selection-background-color: #dbeafe;
+    }
+
+    QHeaderView::section {
+        background: #374151;
+        color: #ffffff;
+        padding: 6px;
+        border: none;
+        font-weight: 600;
+    }
+
+    QPushButton {
+        padding: 8px 12px;
+        border: 1px solid #c7cfda;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #111827;
+        font-weight: 600;
+    }
+
+    QPushButton:hover {
+        background: #f5f7fb;
+    }
+
+    QCheckBox {
+        color: #1f2937;
+    }
+
+    QMessageBox {
+        background-color: #ffffff;
+    }
+
+    QMessageBox QLabel {
+        color: #111827;
+        min-width: 320px;
+    }
+
+    QMessageBox QPushButton {
+        min-width: 80px;
+        padding: 6px 12px;
+        background: #ffffff;
+        color: #111827;
+        border: 1px solid #c7cfda;
+        border-radius: 8px;
+    }
+
+    #mutedLabel {
+        color: #5a6473;
+    }
+    """
 
 
 class SummaryCard(QFrame):
@@ -74,15 +442,28 @@ class SchedulerWindow(QMainWindow):
         self.staffing_days = []
         self.progress_entries = []
 
+        self.current_theme = "dark"
+
         self._build_ui()
-        self._apply_styles()
+        self._apply_theme()
         self._load_defaults_into_form()
-        self.run_scheduler_from_ui()
 
     def _build_ui(self) -> None:
-        root = QWidget()
-        self.setCentralWidget(root)
+        self.tabs = QTabWidget()
+        self.setCentralWidget(self.tabs)
 
+        self.run_tab = self._build_run_tab()
+        self.schedule_tab = self._build_schedule_tab()
+        self.export_tab = self._build_export_tab()
+        self.data_tab = self._build_data_tab()
+
+        self.tabs.addTab(self.run_tab, "Run")
+        self.tabs.addTab(self.schedule_tab, "Schedule")
+        self.tabs.addTab(self.export_tab, "Export")
+        self.tabs.addTab(self.data_tab, "Data")
+
+    def _build_run_tab(self) -> QWidget:
+        root = QWidget()
         outer_layout = QHBoxLayout(root)
         outer_layout.setContentsMargins(12, 12, 12, 12)
         outer_layout.setSpacing(12)
@@ -91,11 +472,13 @@ class SchedulerWindow(QMainWindow):
         outer_layout.addWidget(splitter)
 
         left_panel = self._build_left_panel()
-        right_panel = self._build_right_panel()
+        right_panel = self._build_run_right_panel()
 
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([340, 1100])
+        splitter.setSizes([360, 1100])
+
+        return root
 
     def _build_left_panel(self) -> QWidget:
         panel = QFrame()
@@ -105,24 +488,43 @@ class SchedulerWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
 
-        title = QLabel("Scheduler Controls")
+        title_row = QHBoxLayout()
+        title = QLabel("Scenario Controls")
         title.setObjectName("panelTitle")
-        layout.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
 
-        path_group = QGroupBox("Data Files")
-        path_form = QFormLayout(path_group)
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["Dark", "Light"])
+        self.theme_combo.setCurrentText("Dark")
+        self.theme_combo.currentTextChanged.connect(self._on_theme_changed)
+        title_row.addWidget(QLabel("Theme"))
+        title_row.addWidget(self.theme_combo)
 
-        self.settings_path_edit = QLineEdit("data/settings.csv")
-        self.rooms_path_edit = QLineEdit("data/rooms.csv")
-        self.staffing_path_edit = QLineEdit("data/staffing.csv")
-        self.progress_path_edit = QLineEdit("data/progress.csv")
+        layout.addLayout(title_row)
 
-        path_form.addRow("Settings CSV", self.settings_path_edit)
-        path_form.addRow("Rooms CSV", self.rooms_path_edit)
-        path_form.addRow("Staffing CSV", self.staffing_path_edit)
-        path_form.addRow("Progress CSV", self.progress_path_edit)
+        workbook_group = QGroupBox("Workbook")
+        workbook_layout = QVBoxLayout(workbook_group)
 
-        layout.addWidget(path_group)
+        workbook_row = QHBoxLayout()
+        self.workbook_path_edit = QLineEdit("data/summer_scheduler_template.xlsx")
+        self.browse_workbook_button = QPushButton("Browse")
+        self.browse_workbook_button.clicked.connect(self._browse_workbook)
+        workbook_row.addWidget(self.workbook_path_edit)
+        workbook_row.addWidget(self.browse_workbook_button)
+
+        workbook_layout.addLayout(workbook_row)
+
+        template_row = QHBoxLayout()
+        self.make_template_button = QPushButton("Create Template")
+        self.make_template_button.clicked.connect(self._create_template_from_ui)
+        self.reload_button = QPushButton("Reload Workbook Defaults")
+        self.reload_button.clicked.connect(self._load_defaults_into_form)
+        template_row.addWidget(self.make_template_button)
+        template_row.addWidget(self.reload_button)
+
+        workbook_layout.addLayout(template_row)
+        layout.addWidget(workbook_group)
 
         run_group = QGroupBox("Run Settings")
         run_form = QFormLayout(run_group)
@@ -137,13 +539,15 @@ class SchedulerWindow(QMainWindow):
         self.include_carpet_check = QCheckBox("Include Carpet")
         self.include_exterior_check = QCheckBox("Include Exterior")
 
+        self.include_carpet_check.toggled.connect(self._sync_carpet_toggle_state)
+
         self.general_can_do_carpet_check = QCheckBox(
             "General crew allowed to do carpet work"
         )
         self.general_can_do_carpet_check.setChecked(True)
         self.general_can_do_carpet_check.setEnabled(False)
         self.general_can_do_carpet_check.setToolTip(
-            "Coming next. The engine is not wired to this toggle yet."
+            "Coming next. Engine support is not wired yet."
         )
 
         run_form.addRow("Schedule Name", self.schedule_name_edit)
@@ -179,25 +583,22 @@ class SchedulerWindow(QMainWindow):
 
         button_row = QHBoxLayout()
 
-        self.reload_button = QPushButton("Reload CSV Defaults")
         self.run_button = QPushButton("Run Scheduler")
         self.run_button.setObjectName("primaryButton")
-
-        self.reload_button.clicked.connect(self._load_defaults_into_form)
         self.run_button.clicked.connect(self.run_scheduler_from_ui)
 
-        button_row.addWidget(self.reload_button)
         button_row.addWidget(self.run_button)
-
         layout.addLayout(button_row)
 
-        info_group = QGroupBox("Notes")
+        info_group = QGroupBox("What This Tab Does")
         info_layout = QVBoxLayout(info_group)
 
         notes = QLabel(
-            "This is the first PySide6 shell on top of the current scheduler engine.\n\n"
-            "The carpet toggle is shown now so the UI has the right future shape, "
-            "but it is intentionally disabled until we wire the engine logic for it."
+            "Run tab = scenario controls + fast answer.\n\n"
+            "If the schedule misses, you should be able to see that here without digging.\n"
+            "Schedule details live on the Schedule tab.\n"
+            "Exports live on the Export tab.\n"
+            "Workbook/template tools live on the Data tab."
         )
         notes.setWordWrap(True)
         notes.setObjectName("mutedLabel")
@@ -208,7 +609,7 @@ class SchedulerWindow(QMainWindow):
 
         return panel
 
-    def _build_right_panel(self) -> QWidget:
+    def _build_run_right_panel(self) -> QWidget:
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -216,7 +617,7 @@ class SchedulerWindow(QMainWindow):
 
         title_row = QHBoxLayout()
 
-        page_title = QLabel("Summer Scheduler Dashboard")
+        page_title = QLabel("Run Overview")
         page_title.setObjectName("pageTitle")
 
         self.status_chip = QLabel("Ready")
@@ -243,13 +644,6 @@ class SchedulerWindow(QMainWindow):
 
         layout.addLayout(cards_row)
 
-        detail_splitter = QSplitter(Qt.Orientation.Vertical)
-
-        top_half = QWidget()
-        top_layout = QVBoxLayout(top_half)
-        top_layout.setContentsMargins(0, 0, 0, 0)
-        top_layout.setSpacing(12)
-
         summary_group = QGroupBox("Run Summary")
         summary_layout = QVBoxLayout(summary_group)
 
@@ -258,7 +652,26 @@ class SchedulerWindow(QMainWindow):
         self.summary_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
 
         summary_layout.addWidget(self.summary_text)
-        top_layout.addWidget(summary_group)
+        layout.addWidget(summary_group)
+
+        return panel
+
+    def _build_schedule_tab(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+
+        title = QLabel("Schedule Breakdown")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        detail_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        top_half = QWidget()
+        top_layout = QVBoxLayout(top_half)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(12)
 
         days_group = QGroupBox("Day-by-Day Schedule")
         days_layout = QVBoxLayout(days_group)
@@ -338,150 +751,158 @@ class SchedulerWindow(QMainWindow):
 
         detail_splitter.addWidget(top_half)
         detail_splitter.addWidget(bottom_half)
-        detail_splitter.setSizes([520, 280])
+        detail_splitter.setSizes([420, 320])
 
         layout.addWidget(detail_splitter)
-
         return panel
 
-    def _apply_styles(self) -> None:
-        self.setStyleSheet(
-            """
-            QWidget {
-                font-size: 13px;
-                color: #1f2937;
-            }
+    def _build_export_tab(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
 
-            QMainWindow {
-                background: #f4f6f8;
-            }
+        title = QLabel("Export")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
 
-            QLabel {
-                color: #1f2937;
-            }
+        export_group = QGroupBox("Export Workbook")
+        export_layout = QVBoxLayout(export_group)
 
-            #sidePanel {
-                background: #ffffff;
-                border: 1px solid #d9dee5;
-                border-radius: 12px;
-            }
+        export_row = QHBoxLayout()
+        self.export_path_edit = QLineEdit("output")
+        self.export_button = QPushButton("Export Result Workbook")
+        self.export_button.clicked.connect(self._export_result_workbook)
+        export_row.addWidget(QLabel("Output Folder"))
+        export_row.addWidget(self.export_path_edit)
+        export_row.addWidget(self.export_button)
 
-            #panelTitle {
-                font-size: 20px;
-                font-weight: 700;
-                color: #111827;
-            }
+        export_layout.addLayout(export_row)
+        layout.addWidget(export_group)
 
-            #pageTitle {
-                font-size: 24px;
-                font-weight: 700;
-                color: #111827;
-            }
+        preview_group = QGroupBox("Export Status")
+        preview_layout = QVBoxLayout(preview_group)
 
-            #statusChip {
-                background: #e8eefc;
-                color: #1f3a6d;
-                border: 1px solid #cdd9f7;
-                border-radius: 10px;
-                padding: 6px 10px;
-                font-weight: 600;
-            }
-
-            #summaryCard {
-                background: #ffffff;
-                border: 1px solid #d9dee5;
-                border-radius: 12px;
-            }
-
-            #summaryCardTitle {
-                color: #5a6473;
-                font-size: 12px;
-                font-weight: 600;
-                text-transform: uppercase;
-            }
-
-            #summaryCardValue {
-                color: #111827;
-                font-size: 20px;
-                font-weight: 700;
-            }
-
-            #primaryButton {
-                background: #1f6feb;
-                color: white;
-                font-weight: 700;
-                padding: 8px 14px;
-                border-radius: 8px;
-            }
-
-            #primaryButton:hover {
-                background: #1a62cf;
-            }
-
-            QGroupBox {
-                background: #ffffff;
-                color: #111827;
-                border: 1px solid #d9dee5;
-                border-radius: 12px;
-                margin-top: 10px;
-                font-weight: 700;
-            }
-
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 6px 0 6px;
-                color: #374151;
-            }
-
-            QPlainTextEdit, QLineEdit, QTableWidget {
-                background: #ffffff;
-                color: #111827;
-                border: 1px solid #cfd6df;
-                border-radius: 8px;
-                selection-background-color: #dbeafe;
-                selection-color: #111827;
-            }
-
-            QHeaderView::section {
-                background: #374151;
-                color: #ffffff;
-                padding: 6px;
-                border: none;
-                font-weight: 600;
-            }
-
-            QPushButton {
-                padding: 8px 12px;
-                border: 1px solid #c7cfda;
-                border-radius: 8px;
-                background: #ffffff;
-                color: #111827;
-                font-weight: 600;
-            }
-
-            QPushButton:hover {
-                background: #f5f7fb;
-            }
-
-            #mutedLabel {
-                color: #5a6473;
-            }
-            """
+        self.export_status_text = QPlainTextEdit()
+        self.export_status_text.setReadOnly(True)
+        self.export_status_text.setPlainText(
+            "No export yet.\n\nRun the scheduler first, then export the workbook."
         )
 
+        preview_layout.addWidget(self.export_status_text)
+        layout.addWidget(preview_group)
+
+        layout.addStretch(1)
+        return panel
+
+    def _build_data_tab(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+
+        title = QLabel("Data / Workbook")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        template_group = QGroupBox("Template Tools")
+        template_layout = QVBoxLayout(template_group)
+
+        template_row = QHBoxLayout()
+        self.template_path_edit = QLineEdit("data/summer_scheduler_template.xlsx")
+        self.template_button = QPushButton("Create Fresh Template")
+        self.template_button.clicked.connect(self._create_template_from_ui)
+        template_row.addWidget(self.template_path_edit)
+        template_row.addWidget(self.template_button)
+
+        template_layout.addLayout(template_row)
+        layout.addWidget(template_group)
+
+        workbook_group = QGroupBox("Workbook Validation")
+        workbook_layout = QVBoxLayout(workbook_group)
+
+        self.validate_button = QPushButton("Validate Current Workbook")
+        self.validate_button.clicked.connect(self._validate_current_workbook)
+        workbook_layout.addWidget(self.validate_button)
+
+        self.data_status_text = QPlainTextEdit()
+        self.data_status_text.setReadOnly(True)
+        self.data_status_text.setPlainText(
+            "Expected workbook sheets:\n"
+            "- Setup\n"
+            "- Rooms\n"
+            "- Staffing\n"
+            "- Progress (optional)\n\n"
+            "This app now reads Excel workbooks only."
+        )
+        workbook_layout.addWidget(self.data_status_text)
+
+        layout.addWidget(workbook_group)
+        layout.addStretch(1)
+        return panel
+
+    def _apply_theme(self) -> None:
+        if self.current_theme == "dark":
+            self.setStyleSheet(get_dark_stylesheet())
+        else:
+            self.setStyleSheet(get_light_stylesheet())
+
+    def _on_theme_changed(self, value: str) -> None:
+        self.current_theme = "dark" if value.lower() == "dark" else "light"
+        self._apply_theme()
+
     def _show_error(self, title: str, message: str) -> None:
-        QMessageBox.critical(self, title, message)
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle(title)
+        msg.setText(message)
+        msg.exec()
+
+    def _show_info(self, title: str, message: str) -> None:
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle(title)
+        msg.setText(message)
+        msg.exec()
+
+    def _browse_workbook(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Scheduler Workbook",
+            str(Path.cwd()),
+            "Excel Workbook (*.xlsx *.xlsm)",
+        )
+        if file_path:
+            self.workbook_path_edit.setText(file_path)
+            self._validate_current_workbook()
+
+    def _sync_carpet_toggle_state(self) -> None:
+        carpet_on = self.include_carpet_check.isChecked()
+        self.general_can_do_carpet_check.setEnabled(carpet_on)
+
+    def _resolve_workbook_path(self) -> str:
+        raw_path = self.workbook_path_edit.text().strip()
+        if not raw_path:
+            raw_path = "data/summer_scheduler_template.xlsx"
+
+        base_dir = Path(__file__).resolve().parent
+        path_obj = Path(raw_path)
+
+        if path_obj.is_absolute():
+            return str(path_obj)
+
+        return str((base_dir / path_obj).resolve())
 
     def _load_defaults_into_form(self) -> None:
         try:
-            settings_path = self._resolve_path_from_ui(
-                self.settings_path_edit.text().strip(),
-                "data/settings.csv",
-            )
-            settings = load_settings(settings_path)
+            workbook_path = self._resolve_workbook_path()
+            errors = validate_workbook(workbook_path)
+            if errors:
+                raise ValueError("\n".join(errors))
+
+            settings = load_settings(workbook_path)
         except Exception as exc:
-            self._show_error("Load Error", f"Could not load settings defaults.\n\n{exc}")
+            self._show_error("Load Error", f"Could not load workbook defaults.\n\n{exc}")
             return
 
         self.schedule_name_edit.setText(settings.schedule_name)
@@ -501,35 +922,8 @@ class SchedulerWindow(QMainWindow):
         self.cleanup_hours_edit.setText(str(settings.cleanup_hours_per_day))
         self.productive_hours_edit.setText(str(settings.productive_hours_per_staff_per_day))
 
-    def _resolve_path_from_ui(self, raw_path: str, default_path: str) -> str:
-        base_dir = Path(__file__).resolve().parent
-        candidate = raw_path.strip() or default_path
-        path_obj = Path(candidate)
-
-        if path_obj.is_absolute():
-            return str(path_obj)
-
-        return str((base_dir / path_obj).resolve())
-
-    def _read_paths(self) -> tuple[str, str, str, str]:
-        return (
-            self._resolve_path_from_ui(
-                self.settings_path_edit.text(),
-                "data/settings.csv",
-            ),
-            self._resolve_path_from_ui(
-                self.rooms_path_edit.text(),
-                "data/rooms.csv",
-            ),
-            self._resolve_path_from_ui(
-                self.staffing_path_edit.text(),
-                "data/staffing.csv",
-            ),
-            self._resolve_path_from_ui(
-                self.progress_path_edit.text(),
-                "data/progress.csv",
-            ),
-        )
+        self._sync_carpet_toggle_state()
+        self.data_status_text.setPlainText(f"Workbook loaded:\n{workbook_path}")
 
     def _apply_form_overrides_to_settings(self) -> None:
         self.settings.schedule_name = (
@@ -561,12 +955,15 @@ class SchedulerWindow(QMainWindow):
 
     def run_scheduler_from_ui(self) -> None:
         try:
-            settings_path, rooms_path, staffing_path, progress_path = self._read_paths()
+            workbook_path = self._resolve_workbook_path()
+            errors = validate_workbook(workbook_path)
+            if errors:
+                raise ValueError("\n".join(errors))
 
-            self.settings = load_settings(settings_path)
-            self.rooms, self.schools = load_rooms(rooms_path)
-            self.staffing_days = load_staffing(staffing_path)
-            self.progress_entries = load_progress(progress_path)
+            self.settings = load_settings(workbook_path)
+            self.rooms, self.schools = load_rooms(workbook_path)
+            self.staffing_days = load_staffing(workbook_path)
+            self.progress_entries = load_progress(workbook_path)
 
             self._apply_form_overrides_to_settings()
 
@@ -580,6 +977,11 @@ class SchedulerWindow(QMainWindow):
             self._populate_summary()
             self._populate_days_table()
             self.status_chip.setText("Run complete")
+            self.export_status_text.setPlainText(
+                "Run complete.\n\nGo to Export tab to write an Excel report workbook."
+            )
+            self.tabs.setCurrentWidget(self.run_tab)
+
         except Exception as exc:
             self.status_chip.setText("Run failed")
             error_text = f"{type(exc).__name__}: {exc}"
@@ -587,6 +989,7 @@ class SchedulerWindow(QMainWindow):
             self.day_detail_text.setPlainText(error_text)
             self.days_table.setRowCount(0)
             self.worklog_table.setRowCount(0)
+            self.export_status_text.setPlainText(error_text)
             self._show_error("Scheduler Error", error_text)
 
     def _populate_summary(self) -> None:
@@ -725,6 +1128,45 @@ class SchedulerWindow(QMainWindow):
         ]
 
         self.day_detail_text.setPlainText("\n".join(detail_lines))
+
+    def _export_result_workbook(self) -> None:
+        if not self.result:
+            self._show_error("Nothing To Export", "Run the scheduler first.")
+            return
+
+        try:
+            output_folder = self.export_path_edit.text().strip() or "output"
+            file_path = export_result_workbook(self.result, output_folder)
+            self.export_status_text.setPlainText(
+                f"Export complete:\n{file_path}"
+            )
+            self._show_info("Export Complete", file_path)
+        except Exception as exc:
+            self.export_status_text.setPlainText(str(exc))
+            self._show_error("Export Error", str(exc))
+
+    def _create_template_from_ui(self) -> None:
+        try:
+            file_path = self.template_path_edit.text().strip() or "data/summer_scheduler_template.xlsx"
+            created = create_input_template(file_path)
+            self.workbook_path_edit.setText(created)
+            self.data_status_text.setPlainText(f"Template created:\n{created}")
+            self._show_info("Template Created", created)
+        except Exception as exc:
+            self._show_error("Template Error", str(exc))
+
+    def _validate_current_workbook(self) -> None:
+        workbook_path = self._resolve_workbook_path()
+        errors = validate_workbook(workbook_path)
+
+        if errors:
+            self.data_status_text.setPlainText(
+                "Workbook validation failed:\n\n" + "\n".join(f"- {e}" for e in errors)
+            )
+        else:
+            self.data_status_text.setPlainText(
+                f"Workbook looks valid:\n{workbook_path}"
+            )
 
 
 def main() -> None:

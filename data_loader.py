@@ -1,10 +1,14 @@
-import csv
+from __future__ import annotations
+
+from pathlib import Path
 from typing import Dict, List, Tuple
+
+from openpyxl import load_workbook
 
 from models import ProgressEntry, Room, School, ScheduleSettings, StaffingDay
 
 
-def parse_bool(value: str) -> bool:
+def parse_bool(value) -> bool:
     return str(value).strip().lower() in {"true", "1", "yes", "y"}
 
 
@@ -29,13 +33,66 @@ def parse_str(raw: Dict[str, str], key: str, default: str) -> str:
     return str(value).strip()
 
 
-def load_settings(settings_file_path: str = "data/settings.csv") -> ScheduleSettings:
+def _sheet_exists(wb, sheet_name: str) -> bool:
+    return sheet_name in wb.sheetnames
+
+
+def _normalize_header(value) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def _sheet_to_dict_rows(ws) -> List[Dict[str, str]]:
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return []
+
+    headers = [_normalize_header(cell) for cell in rows[0]]
+    data_rows: List[Dict[str, str]] = []
+
+    for row in rows[1:]:
+        if row is None:
+            continue
+
+        record: Dict[str, str] = {}
+        has_any_value = False
+
+        for i, header in enumerate(headers):
+            if not header:
+                continue
+            value = row[i] if i < len(row) else ""
+            if value is not None and str(value).strip() != "":
+                has_any_value = True
+            record[header] = "" if value is None else str(value).strip()
+
+        if has_any_value:
+            data_rows.append(record)
+
+    return data_rows
+
+
+def _load_setup_raw(workbook_path: str) -> Dict[str, str]:
+    wb = load_workbook(workbook_path, data_only=True)
+
+    if not _sheet_exists(wb, "Setup"):
+        raise ValueError("Workbook is missing required sheet: Setup")
+
+    ws = wb["Setup"]
     raw: Dict[str, str] = {}
 
-    with open(settings_file_path, mode="r", newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
-        for row in reader:
-            raw[row["setting"].strip()] = row["value"].strip()
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        key = "" if row[0] is None else str(row[0]).strip()
+        value = "" if len(row) < 2 or row[1] is None else str(row[1]).strip()
+
+        if not key:
+            continue
+
+        raw[key] = value
+
+    return raw
+
+
+def load_settings(workbook_path: str) -> ScheduleSettings:
+    raw = _load_setup_raw(workbook_path)
 
     legacy_hours_per_staff_per_day = parse_float(
         raw,
@@ -148,91 +205,129 @@ def load_settings(settings_file_path: str = "data/settings.csv") -> ScheduleSett
 
 
 def load_rooms(
-    rooms_file_path: str = "data/rooms.csv",
+    workbook_path: str,
 ) -> Tuple[List[Room], List[School]]:
+    wb = load_workbook(workbook_path, data_only=True)
+
+    if not _sheet_exists(wb, "Rooms"):
+        raise ValueError("Workbook is missing required sheet: Rooms")
+
+    ws = wb["Rooms"]
+    rows = _sheet_to_dict_rows(ws)
+
     rooms: List[Room] = []
     schools_by_name: Dict[str, School] = {}
 
-    with open(rooms_file_path, mode="r", newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
+    for row in rows:
+        room = Room(
+            school_name=row["school_name"].strip(),
+            school_order=int(row["school_order"]),
+            building_name=row["building_name"].strip(),
+            zone_name=row["zone_name"].strip(),
+            room_name=row["room_name"].strip(),
+            room_order=int(row["room_order"]),
+            carpet_sqft=float(row["carpet_sqft"]),
+            tile_sqft=float(row["tile_sqft"]),
+            available_day=int(row["available_day"]),
+            include_deep_clean=parse_bool(row["include_deep_clean"]),
+            include_strip=parse_bool(row["include_strip"]),
+            include_wax=parse_bool(row["include_wax"]),
+            include_carpet=parse_bool(row["include_carpet"]),
+            include_exterior=parse_bool(row["include_exterior"]),
+            notes=row.get("notes", "").strip(),
+        )
+        rooms.append(room)
 
-        for row in reader:
-            room = Room(
-                school_name=row["school_name"].strip(),
-                school_order=int(row["school_order"]),
-                building_name=row["building_name"].strip(),
-                zone_name=row["zone_name"].strip(),
-                room_name=row["room_name"].strip(),
-                room_order=int(row["room_order"]),
-                carpet_sqft=float(row["carpet_sqft"]),
-                tile_sqft=float(row["tile_sqft"]),
-                available_day=int(row["available_day"]),
-                include_deep_clean=parse_bool(row["include_deep_clean"]),
-                include_strip=parse_bool(row["include_strip"]),
-                include_wax=parse_bool(row["include_wax"]),
-                include_carpet=parse_bool(row["include_carpet"]),
-                include_exterior=parse_bool(row["include_exterior"]),
-                notes=row.get("notes", "").strip(),
+        if room.school_name not in schools_by_name:
+            schools_by_name[room.school_name] = School(
+                name=room.school_name,
+                order=room.school_order,
             )
-            rooms.append(room)
 
-            if room.school_name not in schools_by_name:
-                schools_by_name[room.school_name] = School(
-                    name=room.school_name,
-                    order=room.school_order,
-                )
-
-            schools_by_name[room.school_name].add_room(room)
+        schools_by_name[room.school_name].add_room(room)
 
     schools = sorted(schools_by_name.values(), key=lambda s: (s.order, s.name))
     return rooms, schools
 
 
-def load_staffing(staffing_file_path: str = "data/staffing.csv") -> List[StaffingDay]:
+def load_staffing(workbook_path: str) -> List[StaffingDay]:
+    wb = load_workbook(workbook_path, data_only=True)
+
+    if not _sheet_exists(wb, "Staffing"):
+        raise ValueError("Workbook is missing required sheet: Staffing")
+
+    ws = wb["Staffing"]
+    rows = _sheet_to_dict_rows(ws)
+
     staffing_days: List[StaffingDay] = []
 
-    with open(staffing_file_path, mode="r", newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
-
-        for row in reader:
-            staffing_days.append(
-                StaffingDay(
-                    day=int(row["day"]),
-                    available_staff=int(row["available_staff"]),
-                    carpet_staff_reserved=int(row["carpet_staff_reserved"]),
-                    absences=int(row["absences"]),
-                    temporary_help=int(row["temporary_help"]),
-                )
+    for row in rows:
+        staffing_days.append(
+            StaffingDay(
+                day=int(row["day"]),
+                available_staff=int(row["available_staff"]),
+                carpet_staff_reserved=int(row["carpet_staff_reserved"]),
+                absences=int(row["absences"]),
+                temporary_help=int(row["temporary_help"]),
             )
+        )
 
     staffing_days.sort(key=lambda s: s.day)
     return staffing_days
 
 
-def load_progress(progress_file_path: str = "data/progress.csv") -> List[ProgressEntry]:
+def load_progress(workbook_path: str) -> List[ProgressEntry]:
+    wb = load_workbook(workbook_path, data_only=True)
+
+    if not _sheet_exists(wb, "Progress"):
+        return []
+
+    ws = wb["Progress"]
+    rows = _sheet_to_dict_rows(ws)
+
     progress_entries: List[ProgressEntry] = []
 
-    with open(progress_file_path, mode="r", newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
-        fieldnames = reader.fieldnames or []
+    for row in rows:
+        school_name = row.get("school_name", "").strip()
+        room_name = row.get("room_name", "").strip()
+        phase_name = row.get("phase_name", "").strip()
+        hours_completed = row.get("hours_completed", "").strip()
 
-        has_building_name = "building_name" in fieldnames
-        has_zone_name = "zone_name" in fieldnames
+        if not school_name or not room_name or not phase_name or not hours_completed:
+            continue
 
-        for row in reader:
-            progress_entries.append(
-                ProgressEntry(
-                    school_name=row["school_name"].strip(),
-                    building_name=row["building_name"].strip()
-                    if has_building_name and row.get("building_name")
-                    else "",
-                    zone_name=row["zone_name"].strip()
-                    if has_zone_name and row.get("zone_name")
-                    else "",
-                    room_name=row["room_name"].strip(),
-                    phase_name=row["phase_name"].strip(),
-                    hours_completed=float(row["hours_completed"]),
-                )
+        progress_entries.append(
+            ProgressEntry(
+                school_name=school_name,
+                building_name=row.get("building_name", "").strip(),
+                zone_name=row.get("zone_name", "").strip(),
+                room_name=room_name,
+                phase_name=phase_name,
+                hours_completed=float(hours_completed),
             )
+        )
 
     return progress_entries
+
+
+def validate_workbook(workbook_path: str) -> List[str]:
+    errors: List[str] = []
+
+    path = Path(workbook_path)
+    if not path.exists():
+        return [f"Workbook not found: {workbook_path}"]
+
+    if path.suffix.lower() not in {".xlsx", ".xlsm"}:
+        errors.append("Workbook must be an .xlsx or .xlsm file")
+
+    try:
+        wb = load_workbook(workbook_path, data_only=True)
+    except Exception as exc:
+        return [f"Could not open workbook: {exc}"]
+
+    required_sheets = ["Setup", "Rooms", "Staffing"]
+    for sheet in required_sheets:
+        if sheet not in wb.sheetnames:
+            errors.append(f"Missing required sheet: {sheet}")
+
+    return errors
