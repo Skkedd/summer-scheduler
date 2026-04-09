@@ -61,7 +61,9 @@ def build_task_items(rooms: List[Room], settings: ScheduleSettings) -> List[Task
             r.room_name,
         ),
     ):
-        total_sqft = room.carpet_sqft + room.tile_sqft
+        total_sqft = room.total_room_sqft
+        strip_wax_sqft = room.tile_strip_wax_sqft
+        carpet_sqft = room.carpet_sqft
 
         if settings.include_deep_clean and room.include_deep_clean and total_sqft > 0:
             hours = total_sqft / settings.deep_clean_rate_sqft_per_hour
@@ -81,8 +83,8 @@ def build_task_items(rooms: List[Room], settings: ScheduleSettings) -> List[Task
                 )
             )
 
-        if settings.include_strip and room.include_strip and room.tile_sqft > 0:
-            hours = room.tile_sqft / settings.strip_rate_sqft_per_hour
+        if settings.include_strip and room.include_strip and strip_wax_sqft > 0:
+            hours = strip_wax_sqft / settings.strip_rate_sqft_per_hour
             task_items.append(
                 TaskItem(
                     school_name=room.school_name,
@@ -99,8 +101,8 @@ def build_task_items(rooms: List[Room], settings: ScheduleSettings) -> List[Task
                 )
             )
 
-        if settings.include_wax and room.include_wax and room.tile_sqft > 0:
-            hours = (room.tile_sqft / settings.wax_rate_sqft_per_hour) * settings.wax_coats
+        if settings.include_wax and room.include_wax and strip_wax_sqft > 0:
+            hours = (strip_wax_sqft / settings.wax_rate_sqft_per_hour) * settings.wax_coats
             task_items.append(
                 TaskItem(
                     school_name=room.school_name,
@@ -117,8 +119,8 @@ def build_task_items(rooms: List[Room], settings: ScheduleSettings) -> List[Task
                 )
             )
 
-        if settings.include_carpet and room.include_carpet and room.carpet_sqft > 0:
-            hours = room.carpet_sqft / settings.carpet_rate_sqft_per_hour
+        if settings.include_carpet and room.include_carpet and carpet_sqft > 0:
+            hours = carpet_sqft / settings.carpet_rate_sqft_per_hour
             task_items.append(
                 TaskItem(
                     school_name=room.school_name,
@@ -252,36 +254,6 @@ def apply_progress_to_tasks(
         completed_hours_total = clean_hours(completed_hours_total + completed)
 
     return clean_hours(completed_hours_total)
-
-
-def summarize_hours_by_school(tasks: List[TaskItem]) -> Dict[str, float]:
-    totals: Dict[str, float] = defaultdict(float)
-    for task in tasks:
-        totals[task.school_name] += task.total_hours
-    return dict(sorted(totals.items()))
-
-
-def summarize_hours_by_phase(tasks: List[TaskItem]) -> Dict[str, float]:
-    totals: Dict[str, float] = defaultdict(float)
-    for task in tasks:
-        totals[task.phase_name] += task.total_hours
-    return dict(sorted(totals.items()))
-
-
-def summarize_remaining_by_school(tasks: List[TaskItem]) -> Dict[str, float]:
-    totals: Dict[str, float] = defaultdict(float)
-    for task in tasks:
-        if task.remaining_hours > 0:
-            totals[task.school_name] += task.remaining_hours
-    return dict(sorted(totals.items()))
-
-
-def summarize_remaining_by_phase(tasks: List[TaskItem]) -> Dict[str, float]:
-    totals: Dict[str, float] = defaultdict(float)
-    for task in tasks:
-        if task.remaining_hours > 0:
-            totals[task.phase_name] += task.remaining_hours
-    return dict(sorted(totals.items()))
 
 
 def backlog_split(tasks: List[TaskItem], current_day: int) -> Tuple[float, float]:

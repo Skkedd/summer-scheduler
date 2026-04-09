@@ -10,8 +10,12 @@ class Room:
     zone_name: str
     room_name: str
     room_order: int
+
+    total_room_sqft: float
     carpet_sqft: float
-    tile_sqft: float
+    tile_strip_wax_sqft: float
+    scrub_only_vct_sqft: float
+
     available_day: int
     include_deep_clean: bool
     include_strip: bool
@@ -67,7 +71,9 @@ class ScheduleSettings:
     day_end_time: str = "4:00 PM"
 
     schedule_start_date: str = "2026-06-01"
+    target_end_date: str = ""
     work_on_weekends: bool = False
+    paid_holidays_in_range: int = 0
 
     @property
     def non_productive_hours_per_staff_per_day(self) -> float:
@@ -102,6 +108,10 @@ class ScheduleSettings:
 
         if abs(self.productive_hours_per_staff_per_day - calculated_productive) > 0.01:
             self.productive_hours_per_staff_per_day = calculated_productive
+
+        self.target_end_day = max(1, int(self.target_end_day))
+        self.current_day = max(1, int(self.current_day))
+        self.paid_holidays_in_range = max(0, int(self.paid_holidays_in_range))
 
 
 @dataclass
