@@ -1,3 +1,4 @@
+import json
 import sys
 from datetime import datetime, timedelta
 from copy import deepcopy
@@ -44,6 +45,36 @@ from models import StaffingDay
 from services.scenario_service import ScenarioInput, run_scenario
 from timeblock_generator import format_time_blocks_for_text
 
+CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
+
+
+def load_app_config() -> dict:
+    if not CONFIG_FILE.exists():
+        return {}
+
+    try:
+        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_app_config(data: dict) -> None:
+    CONFIG_FILE.write_text(
+        json.dumps(data, indent=2),
+        encoding="utf-8",
+    )
+
+
+def get_last_workbook_folder() -> str:
+    config = load_app_config()
+    value = config.get("last_workbook_folder", "")
+    return str(value).strip()
+
+
+def set_last_workbook_folder(folder_path: str) -> None:
+    config = load_app_config()
+    config["last_workbook_folder"] = str(folder_path).strip()
+    save_app_config(config)
 
 def fmt_hours(value: float) -> str:
     return f"{value:.2f}"
@@ -485,7 +516,21 @@ class SchedulerWindow(QMainWindow):
 
         self._build_ui()
         self._apply_theme()
+        self._load_startup_workbook_folder()
         self._load_defaults_into_form()
+
+    def _load_startup_workbook_folder(self) -> None:
+        last_folder = get_last_workbook_folder()
+        if not last_folder:
+            return
+
+        folder_path = Path(last_folder)
+        if not folder_path.exists() or not folder_path.is_dir():
+            return
+
+        resolved = str(folder_path.resolve())
+        self.workbook_path_edit.setText(resolved)
+        self.template_path_edit.setText(resolved)
 
     def _build_ui(self) -> None:
         self.tabs = QTabWidget()
@@ -625,7 +670,6 @@ class SchedulerWindow(QMainWindow):
         run_form.addRow("Schedule Name", self.schedule_name_edit)
         run_form.addRow("Start Date", self.schedule_start_date_edit)
         run_form.addRow("Current Day", self.current_day_edit)
-        run_form.addRow("Target End Day", self.target_end_day_edit)
         run_form.addRow("Target End Date", self.target_end_date_edit)
         run_form.addRow("Paid Holidays", self.paid_holidays_edit)
         run_form.addRow("", self.work_on_weekends_check)
@@ -1034,8 +1078,10 @@ class SchedulerWindow(QMainWindow):
         str(Path.cwd()),
     )
         if folder_path:
-            self.workbook_path_edit.setText(folder_path)
-            self.template_path_edit.setText(folder_path)
+            resolved = str(Path(folder_path).resolve())
+            self.workbook_path_edit.setText(resolved)
+            self.template_path_edit.setText(resolved)
+            set_last_workbook_folder(resolved)
             self._validate_current_workbook()
 
     def _sync_carpet_toggle_state(self) -> None:
@@ -1084,16 +1130,16 @@ class SchedulerWindow(QMainWindow):
 
     def _resolve_workbook_path(self) -> str:
         raw_path = self.workbook_path_edit.text().strip()
-        if not raw_path:
-            raw_path = "data"
 
-        base_dir = Path(__file__).resolve().parent
+        if not raw_path:
+            raise ValueError("No workbook folder selected.")
+
         path_obj = Path(raw_path)
 
-        if path_obj.is_absolute():
-            return str(path_obj)
+        if not path_obj.exists():
+            raise ValueError(f"Workbook folder does not exist:\n{path_obj}")
 
-        return str((base_dir / path_obj).resolve())
+        return str(path_obj.resolve())
 
     def _load_defaults_into_form(self) -> None:
         try:
@@ -1110,7 +1156,6 @@ class SchedulerWindow(QMainWindow):
         self.schedule_name_edit.setText(settings.schedule_name)
         self.schedule_start_date_edit.setText(settings.schedule_start_date)
         self.current_day_edit.setText(str(settings.current_day))
-        self.target_end_day_edit.setText(str(settings.target_end_day))
         self.work_on_weekends_check.setChecked(settings.work_on_weekends)
 
         self.include_deep_clean_check.setChecked(settings.include_deep_clean)
@@ -1136,8 +1181,14 @@ class SchedulerWindow(QMainWindow):
         self.settings.schedule_start_date = (
             self.schedule_start_date_edit.text().strip() or self.settings.schedule_start_date
         )
+        self.settings.target_end_date = (
+            self.target_end_date_edit.text().strip() or self.settings.target_end_date
+        )
+
+        self.settings.paid_holidays_in_range = int(
+            self.paid_holidays_edit.text().strip() or "0"
+        )
         self.settings.current_day = int(self.current_day_edit.text().strip())
-        self.settings.target_end_day = int(self.target_end_day_edit.text().strip())
         self.settings.work_on_weekends = self.work_on_weekends_check.isChecked()
 
         self.settings.include_deep_clean = self.include_deep_clean_check.isChecked()
@@ -1157,6 +1208,14 @@ class SchedulerWindow(QMainWindow):
         )
         self.settings.productive_hours_per_staff_per_day = float(
             self.productive_hours_edit.text().strip()
+        )
+
+        if self.settings.target_end_date:
+            self.settings.target_end_day = calculate_workdays(
+                self.settings.schedule_start_date,
+                self.settings.target_end_date,
+                self.settings.work_on_weekends,
+                self.settings.paid_holidays_in_range,
         )
 
         self.settings.validate_or_normalize()
