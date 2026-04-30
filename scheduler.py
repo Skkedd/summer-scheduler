@@ -38,6 +38,14 @@ def is_non_carpet_task(task: TaskItem) -> bool:
     return task.phase_name != "Carpet"
 
 
+def is_wax_task(task: TaskItem) -> bool:
+    return task.phase_name.startswith("Wax")
+
+
+def is_strip_wax_task(task: TaskItem) -> bool:
+    return task.phase_name == "Strip" or is_wax_task(task)
+
+
 def room_key(task: TaskItem) -> Tuple[str, str, str, str]:
     return (
         task.school_name,
@@ -55,9 +63,9 @@ def build_task_items(rooms: List[Room], settings: ScheduleSettings) -> List[Task
         key=lambda r: (
             r.school_order,
             r.school_name,
+            r.room_order,
             r.building_name,
             r.zone_name,
-            r.room_order,
             r.room_name,
         ),
     ):
@@ -66,7 +74,18 @@ def build_task_items(rooms: List[Room], settings: ScheduleSettings) -> List[Task
         carpet_sqft = room.carpet_sqft
 
         if settings.include_deep_clean and room.include_deep_clean and total_sqft > 0:
-            hours = total_sqft / settings.deep_clean_rate_sqft_per_hour
+            room_use = (getattr(room, "room_use", "") or "").strip().lower()
+            restroom_rate = getattr(
+                settings,
+                "restroom_deep_clean_rate_sqft_per_hour",
+                settings.deep_clean_rate_sqft_per_hour,
+            )
+            deep_clean_rate = (
+                restroom_rate
+                if room_use in {"restroom", "bathroom", "small restroom", "large restroom"}
+                else settings.deep_clean_rate_sqft_per_hour
+            )
+            hours = total_sqft / deep_clean_rate if deep_clean_rate > 0 else 0.0
             task_items.append(
                 TaskItem(
                     school_name=room.school_name,
@@ -173,17 +192,19 @@ def phase_sort_key(phase_name: str) -> int:
         "Carpet": 4,
         "Exterior": 5,
         "Transition / Logistics": 6,
+        "Site Transition": 6,
     }
     return order.get(phase_name, 999)
 
 
-def task_sort_key(task: TaskItem) -> Tuple[int, str, str, int, int, str]:
+def task_sort_key(task: TaskItem) -> Tuple[int, str, int, int, str, str, str]:
     return (
         task.school_order,
         task.school_name,
-        task.building_name,
         task.room_order,
         phase_sort_key(task.phase_name),
+        task.building_name,
+        task.zone_name,
         task.room_name,
     )
 
@@ -546,6 +567,20 @@ def split_general_school_tasks_for_day(
         else:
             blocked_today.append(task)
 
+    # Site-level phase order:
+    # 1) Deep clean every currently available room at this site.
+    # 2) Then strip currently available strip/wax rooms.
+    # 3) Then wax currently available strip/wax rooms.
+    # 4) Then other non-carpet tasks like exterior.
+    # Blocked future rooms do not stop work that is available now.
+    if any(t.phase_name == "Deep Clean" for t in available_today):
+        available_today = [t for t in available_today if t.phase_name == "Deep Clean"]
+    elif any(t.phase_name == "Strip" for t in available_today):
+        available_today = [t for t in available_today if t.phase_name == "Strip"]
+    elif any(is_wax_task(t) for t in available_today):
+        available_today = [t for t in available_today if is_wax_task(t)]
+
+    available_today.sort(key=task_sort_key)
     return available_today, blocked_today
 
 
@@ -588,6 +623,7 @@ def schedule_task_list(
     tasks_to_run: List[TaskItem],
     crew_capacity: float,
     crew_type: str,
+    minimum_partial_strip_wax_hours: float = 0.5,
 ) -> Tuple[List[WorkLogEntry], float]:
     remaining_capacity = clean_hours(crew_capacity)
     work_log: List[WorkLogEntry] = []
@@ -596,6 +632,12 @@ def schedule_task_list(
     for task in tasks_to_run:
         if remaining_capacity <= 0:
             break
+
+        # Strip/wax can be partially carried over for big areas like gyms,
+        # but do not start a tiny end-of-day sliver like 5 minutes.
+        if is_strip_wax_task(task) and task.remaining_hours > remaining_capacity:
+            if remaining_capacity < minimum_partial_strip_wax_hours:
+                break
 
         hours_done = clean_hours(min(task.remaining_hours, remaining_capacity))
         if hours_done <= 0:
@@ -716,9 +758,29 @@ def run_scheduler(
 
     no_progress_days = 0
 
+    # Site transition is real crew-clock time used to gather tools, load carts/vehicles,
+    # move to the next campus and stage for the next site. It intentionally does NOT
+    # consume cleanup/lockup time, which remains protected for security checks.
+    site_transition_clock_hours = getattr(settings, "transition_hours_per_school", 0.0)
+    if site_transition_clock_hours <= 0:
+        site_transition_clock_hours = 2.0
+
+    min_clock_hours_to_start_transition = getattr(
+        settings,
+        "minimum_clock_hours_to_start_site_transition",
+        1.0,
+    )
+
+    last_general_site = ""
+    pending_transition_to_school = ""
+    pending_transition_remaining_labor_hours = 0.0
+    final_transition_target = "tool storage / home sites"
+    final_site_transition_started = False
+    final_site_transition_complete = False
+
     while current_day <= max_day:
         remaining_backlog = clean_hours(sum(task.remaining_hours for task in tasks))
-        if remaining_backlog <= 0:
+        if remaining_backlog <= 0 and final_site_transition_complete:
             break
 
         tasks_by_school = group_tasks_by_school(tasks)
@@ -797,8 +859,104 @@ def run_scheduler(
         general_available_today: List[TaskItem] = []
         general_blocked_today: List[TaskItem] = []
         carpet_assist_school = ""
+        access_downtime_warning = ""
 
-        if general_school:
+        remaining_general_capacity = general_capacity
+        minimum_partial_strip_wax_hours = getattr(
+            settings,
+            "minimum_partial_strip_wax_hours",
+            0.5,
+        )
+
+        def transition_labor_hours_for_current_crew() -> float:
+            # Transition is entered as crew-clock hours. Convert it to labor-hours so
+            # it consumes the same capacity model as other full-crew work.
+            crew_size = max(1, general_staff or effective_staff or 1)
+            return site_transition_clock_hours * crew_size
+
+        def min_transition_start_labor_hours() -> float:
+            crew_size = max(1, general_staff or effective_staff or 1)
+            return min_clock_hours_to_start_transition * crew_size
+
+        def append_transition_work(target_school: str, labor_hours: float, remaining_after: float) -> None:
+            note = (
+                f"Site transition toward {target_school}. Includes gathering tools, loading equipment, "
+                f"travel and staging. Cleanup/lockup time is separate and still protected."
+            )
+            if remaining_after > 0:
+                note += f" Remaining transition after this block: {remaining_after:.2f} labor-hours."
+            work_log.append(
+                WorkLogEntry(
+                    school_name="MULTI-SCHOOL",
+                    building_name="",
+                    zone_name="",
+                    room_name="TRANSITION",
+                    phase_name="Site Transition",
+                    hours_done=labor_hours,
+                    available_day=current_day,
+                    note=note,
+                    crew_type="General",
+                )
+            )
+
+        # General crew can move through more than one site in a day, but only after
+        # paying the transition cost. If a site is blocked by unavailable rooms,
+        # the crew does not silently jump ahead; the day gets an access warning.
+        while remaining_general_capacity > 0:
+            if pending_transition_remaining_labor_hours > 0:
+                used_now = clean_hours(min(pending_transition_remaining_labor_hours, remaining_general_capacity))
+                pending_transition_remaining_labor_hours = clean_hours(
+                    pending_transition_remaining_labor_hours - used_now
+                )
+                remaining_general_capacity = clean_hours(remaining_general_capacity - used_now)
+                general_used_capacity = clean_hours(general_used_capacity + used_now)
+                append_transition_work(
+                    pending_transition_to_school,
+                    used_now,
+                    pending_transition_remaining_labor_hours,
+                )
+
+                if pending_transition_remaining_labor_hours > 0:
+                    break
+
+                completed_transition_target = pending_transition_to_school
+                pending_transition_to_school = ""
+                if completed_transition_target == final_transition_target:
+                    final_site_transition_complete = True
+                else:
+                    last_general_site = completed_transition_target
+                continue
+
+            general_school = get_general_school(tasks, deferred_general_keys)
+            general_use_deferred_only = False
+            if not general_school:
+                general_school = get_general_deferred_school(tasks, deferred_general_keys, current_day)
+                general_use_deferred_only = True
+
+            if not general_school:
+                remaining_regular_backlog = clean_hours(sum(task.remaining_hours for task in tasks))
+                if remaining_regular_backlog <= 0 and not final_site_transition_complete:
+                    # All scheduled site work is complete. Still schedule a final tool-return
+                    # transition so shared tools and equipment get back to their proper homes.
+                    if not final_site_transition_started:
+                        if remaining_general_capacity < min_transition_start_labor_hours():
+                            break
+                        pending_transition_to_school = final_transition_target
+                        pending_transition_remaining_labor_hours = transition_labor_hours_for_current_crew()
+                        final_site_transition_started = True
+                        continue
+                break
+
+            # Changing sites requires a transition block first. Only start it when
+            # there is at least one crew-clock hour available before cleanup.
+            if last_general_site and general_school != last_general_site:
+                if remaining_general_capacity < min_transition_start_labor_hours():
+                    break
+
+                pending_transition_to_school = general_school
+                pending_transition_remaining_labor_hours = transition_labor_hours_for_current_crew()
+                continue
+
             general_school_tasks = tasks_by_school[general_school]
             general_available_today, general_blocked_today = split_general_school_tasks_for_day(
                 school_tasks=general_school_tasks,
@@ -811,13 +969,34 @@ def run_scheduler(
                 for task in general_blocked_today:
                     deferred_general_keys.add(task.identity_key())
 
-            general_available_today.sort(key=task_sort_key)
-            general_log, general_used_capacity = schedule_task_list(
+            if not general_available_today:
+                if general_blocked_today:
+                    next_release_day = min(task.available_day for task in general_blocked_today)
+                    unused_clock_hours = (
+                        remaining_general_capacity / max(1, general_staff or effective_staff or 1)
+                    )
+                    if unused_clock_hours >= 1.0:
+                        access_downtime_warning = (
+                            f"ACCESS DOWNTIME WARNING: {unused_clock_hours:.2f} crew-clock hours unused at "
+                            f"{general_school} because rooms are restricted until Day {next_release_day}. "
+                            f"Consider assigning alternate work. Check Day Outlook for details."
+                        )
+                break
+
+            general_log, used_now = schedule_task_list(
                 tasks_to_run=general_available_today,
-                crew_capacity=general_capacity,
+                crew_capacity=remaining_general_capacity,
                 crew_type="General",
+                minimum_partial_strip_wax_hours=minimum_partial_strip_wax_hours,
             )
+
+            if used_now <= 0:
+                break
+
+            general_used_capacity = clean_hours(general_used_capacity + used_now)
+            remaining_general_capacity = clean_hours(remaining_general_capacity - used_now)
             work_log.extend(general_log)
+            last_general_site = general_school
 
         if carpet_school:
             carpet_school_tasks = tasks_by_school[carpet_school]
@@ -849,7 +1028,9 @@ def run_scheduler(
 
         general_unused_capacity = clean_hours(general_capacity - general_used_capacity)
 
-        if carpet_capacity <= 0 and general_unused_capacity > 0:
+        general_crew_can_do_carpet = getattr(settings, "general_crew_can_do_carpet", True)
+
+        if carpet_capacity <= 0 and general_unused_capacity > 0 and general_crew_can_do_carpet:
             room_tasks_map = build_room_task_map(tasks)
 
             assist_use_deferred_only = False
@@ -898,30 +1079,7 @@ def run_scheduler(
                     general_used_capacity = clean_hours(general_used_capacity + assist_used)
                     work_log.extend(assist_log)
 
-        transition_hours = clean_hours(
-            calculate_school_transition_hours(work_log, settings)
-        )
         used_capacity = clean_hours(general_used_capacity + carpet_used_capacity)
-
-        total_remaining_capacity = clean_hours(daily_capacity - used_capacity)
-
-        if transition_hours > 0 and total_remaining_capacity > 0:
-            actual_transition = clean_hours(min(transition_hours, total_remaining_capacity))
-            if actual_transition > 0:
-                used_capacity = clean_hours(used_capacity + actual_transition)
-                work_log.append(
-                    WorkLogEntry(
-                        school_name="MULTI-SCHOOL",
-                        building_name="",
-                        zone_name="",
-                        room_name="TRANSITION",
-                        phase_name="Transition / Logistics",
-                        hours_done=actual_transition,
-                        available_day=current_day,
-                        note="Inter-school move / logistics time",
-                        crew_type="Shared",
-                    )
-                )
 
         total_used_hours = clean_hours(total_used_hours + used_capacity)
         unused_capacity = clean_hours(daily_capacity - used_capacity)
@@ -960,6 +1118,24 @@ def run_scheduler(
             carpet_staff=carpet_staff,
             carpet_used_capacity=carpet_used_capacity if carpet_capacity > 0 else clean_hours(sum(item.hours_done for item in work_log if item.crew_type == "General Assist")),
         )
+
+        exterior_used_as_access_work = any(
+            item.phase_name == "Exterior"
+            for item in work_log
+        ) and any(
+            task.school_name == general_school
+            and task.phase_name not in {"Exterior", "Carpet", "Site Transition", "Transition / Logistics"}
+            and task.remaining_hours > 0
+            and task.available_day > current_day
+            for task in tasks
+        )
+
+        if exterior_used_as_access_work:
+            day_status_note = (
+                f"{day_status_note} ACCESS WORKAROUND: Interior rooms are blocked, so exterior work is being used as productive filler."
+            )
+        if access_downtime_warning:
+            day_status_note = f"{day_status_note} {access_downtime_warning}"
 
         day_results.append(
             ScheduleDayResult(

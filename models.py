@@ -14,7 +14,8 @@ class Room:
     total_room_sqft: float
     carpet_sqft: float
     tile_strip_wax_sqft: float
-    scrub_only_vct_sqft: float
+    scrub_only_hard_floor_sqft: float
+    room_use: str
 
     available_day: int
     include_deep_clean: bool
@@ -55,6 +56,7 @@ class ScheduleSettings:
     include_carpet: bool
     include_exterior: bool
     deep_clean_rate_sqft_per_hour: float
+    restroom_deep_clean_rate_sqft_per_hour: float
     strip_rate_sqft_per_hour: float
     wax_rate_sqft_per_hour: float
     carpet_rate_sqft_per_hour: float
